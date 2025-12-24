@@ -6,8 +6,13 @@ MyComPort2::~MyComPort2() { Close(); }
 MyComPort2::MyComPort2(MyComPort2&& other) noexcept {
     m_handle = other.m_handle;
     m_lastError = other.m_lastError;
+    m_hRecvThread = other.m_hRecvThread;
+    m_recvRunFlag = other.m_recvRunFlag;
+    m_callback = std::move(other.m_callback);
     other.m_handle = INVALID_HANDLE_VALUE;
     other.m_lastError = 0;
+    other.m_hRecvThread = nullptr;
+    other.m_recvRunFlag = 0;
 }
 
 MyComPort2& MyComPort2::operator=(MyComPort2&& other) noexcept {
@@ -15,8 +20,13 @@ MyComPort2& MyComPort2::operator=(MyComPort2&& other) noexcept {
         Close();
         m_handle = other.m_handle;
         m_lastError = other.m_lastError;
+        m_hRecvThread = other.m_hRecvThread;
+        m_recvRunFlag = other.m_recvRunFlag;
+        m_callback = std::move(other.m_callback);
         other.m_handle = INVALID_HANDLE_VALUE;
         other.m_lastError = 0;
+        other.m_hRecvThread = nullptr;
+        other.m_recvRunFlag = 0;
     }
     return *this;
 }
@@ -64,6 +74,9 @@ bool MyComPort2::Open(const wchar_t* portName,
 }
 
 void MyComPort2::Close() {
+    // stop receive thread first
+    StopReceiveThread();
+
     if (m_handle != INVALID_HANDLE_VALUE && m_handle != nullptr) {
         ::CloseHandle(m_handle);
         m_handle = INVALID_HANDLE_VALUE;
@@ -222,4 +235,42 @@ bool MyComPort2::ConfigurePort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE 
     ::ClearCommError(m_handle, &errors, &stat);
 
     return true;
+}
+
+// ---- Receive thread management ----
+
+bool MyComPort2::StartReceiveThread(ReceiveCallback cb) {
+    if (!IsOpen()) return false;
+    if (m_hRecvThread) return true; // already running
+    m_callback = std::move(cb);
+    if (!m_callback) return false;
+    if (InterlockedCompareExchange(&m_recvRunFlag, 1, 0) != 0) return true;
+    m_hRecvThread = ::CreateThread(nullptr, 0, RecvThreadProcStatic, this, 0, nullptr);
+    return m_hRecvThread != nullptr;
+}
+
+void MyComPort2::StopReceiveThread() {
+    if (InterlockedCompareExchange(&m_recvRunFlag, 0, 1) == 1) {
+        if (m_hRecvThread) {
+            ::WaitForSingleObject(m_hRecvThread, 3000);
+            ::CloseHandle(m_hRecvThread);
+            m_hRecvThread = nullptr;
+        }
+    }
+}
+
+DWORD WINAPI MyComPort2::RecvThreadProcStatic(LPVOID lpParam) {
+    return reinterpret_cast<MyComPort2*>(lpParam)->RecvThreadProc();
+}
+
+DWORD MyComPort2::RecvThreadProc() {
+    unsigned char buf[512];
+    while (InterlockedCompareExchange(&m_recvRunFlag, 1, 1) == 1) {
+        if (!IsOpen()) { ::Sleep(50); continue; }
+        int n = ReadOnRxEvent(buf, (DWORD)sizeof(buf));
+        if (InterlockedCompareExchange(&m_recvRunFlag, 1, 1) != 1) break;
+        if (n <= 0) { ::Sleep(5); continue; }
+        if (m_callback) m_callback(buf, (size_t)n);
+    }
+    return 0;
 }

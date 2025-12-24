@@ -85,6 +85,7 @@
   <ItemGroup>
     <ClCompile Include="EventJikken.cpp" />
     <ClCompile Include="EventJikkenUI.cpp" />
+    <ClCompile Include="EventJikkenUI2.cpp" />
     <ClCompile Include="Logger.cpp" />
     <ClCompile Include="MyComPort.cpp" />
     <ClCompile Include="MyComPort2.cpp" />

@@ -2,11 +2,14 @@
 #include <Windows.h>
 #include <string>
 #include <vector>
+#include <functional>
 
 // Event-driven serial COM port wrapper
 // Uses WaitCommEvent to wait for RXCHAR before performing ReadFile.
 class MyComPort2 {
 public:
+    using ReceiveCallback = std::function<void(const unsigned char* data, size_t len)>;
+
     MyComPort2();
     ~MyComPort2();
 
@@ -42,6 +45,10 @@ public:
     // Purge in/out buffers
     bool Purge();
 
+    // Background receive handling
+    bool StartReceiveThread(ReceiveCallback cb);
+    void StopReceiveThread();
+
     DWORD LastError() const noexcept { return m_lastError; }
 
 private:
@@ -50,6 +57,14 @@ private:
 
     bool ConfigurePort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts);
 
+    static DWORD WINAPI RecvThreadProcStatic(LPVOID lpParam);
+    DWORD RecvThreadProc();
+
     HANDLE m_handle = INVALID_HANDLE_VALUE;
     DWORD  m_lastError = 0;
+
+    // receive thread state
+    HANDLE m_hRecvThread = nullptr;
+    volatile LONG m_recvRunFlag = 0; // 0=stop,1=run
+    ReceiveCallback m_callback;
 };
