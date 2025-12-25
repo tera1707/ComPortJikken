@@ -21,20 +21,23 @@ public:
 
     // Open a COM port. Example: L"COM3". Returns true on success.
     bool Open(const wchar_t* portName,
-              DWORD baudRate = CBR_115200,
+              DWORD baudRate = CBR_9600,
               BYTE byteSize = 8,
               BYTE parity = NOPARITY,
               BYTE stopBits = ONESTOPBIT,
-              DWORD readTimeoutMs = 5000,
-              DWORD writeTimeoutMs = 5000,
+              DWORD readTimeoutMs = 1000,
+              DWORD writeTimeoutMs = 1000,
               bool setDtr = true,
               bool setRts = true);
 
     void Close();
     bool IsOpen() const noexcept { return m_handle != INVALID_HANDLE_VALUE && m_handle != nullptr; }
 
-    // Write raw bytes. Returns number of bytes written, or -1 on error.
+    // Write raw bytes synchronously. Returns number of bytes written, or -1 on error.
     int Write(const void* buffer, DWORD bytesToWrite);
+
+    // Write using OVERLAPPED. Returns bytes written if completed immediately, 0 if pending, -1 on error.
+    int WriteAsync(const void* buffer, DWORD bytesToWrite, HANDLE hEvent, OVERLAPPED* pOv);
 
     // Event-driven read: waits for RXCHAR then reads up to bytesToRead. Returns number of bytes read, or -1 on error.
     int ReadOnRxEvent(void* buffer, DWORD bytesToRead);

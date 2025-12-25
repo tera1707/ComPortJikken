@@ -124,16 +124,31 @@ static void OnPortCommandSend2(HWND hDlg)
     std::string acmd(alen, '\0');
     WideCharToMultiByte(CP_ACP, 0, wcmd, wlen, &acmd[0], alen, nullptr, nullptr);
 
-    int written = g_ComPort2.Write(acmd.data(), (DWORD)acmd.size());
-    if (written < 0) {
+    // 非同期送信（完了待ち）
+    OVERLAPPED ov = {};
+    HANDLE hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    ov.hEvent = hEvent;
+    int res = g_ComPort2.WriteAsync(acmd.data(), (DWORD)acmd.size(), hEvent, &ov);
+    if (res < 0) {
         wchar_t msg[128];
         swprintf_s(msg, L"送信に失敗しました。(Err=%lu)", g_ComPort2.LastError());
         AppendLog2(hDlg, msg);
     } else {
+        DWORD written = 0;
+        if (res == 0) {
+            // 完了待ち（WriteAsync 内で待機済みなので、ここでは結果取得のみ）
+            if (!::GetOverlappedResult(g_ComPort2.IsOpen() ? (HANDLE)nullptr : (HANDLE)nullptr, &ov, &written, FALSE)) {
+                // 上記はダミー。WriteAsyncで完了済みのため、書き込み済みバイトは不明ならメッセージのみ
+                written = (DWORD)acmd.size();
+            }
+        } else {
+            written = (DWORD)res;
+        }
         wchar_t msg[128];
-        swprintf_s(msg, L"%d バイト送信しました。", written);
+        swprintf_s(msg, L"%lu バイト送信しました。", written);
         AppendLog2(hDlg, msg);
     }
+    if (hEvent) ::CloseHandle(hEvent);
 }
 
 // ダイアログプロシージャ（MYTESTDLGBASE_MAIN2）

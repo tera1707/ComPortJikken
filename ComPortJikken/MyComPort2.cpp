@@ -49,7 +49,7 @@ bool MyComPort2::Open(const wchar_t* portName,
                              0,
                              nullptr,
                              OPEN_EXISTING,
-                             FILE_ATTRIBUTE_NORMAL,
+                             FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
                              nullptr);
 
     if (m_handle == INVALID_HANDLE_VALUE) {
@@ -85,7 +85,9 @@ void MyComPort2::Close() {
 
 int MyComPort2::Write(const void* buffer, DWORD bytesToWrite) {
     if (!IsOpen()) return -1;
+    if (buffer == nullptr || bytesToWrite == 0) return 0;
     ResetError();
+
     DWORD written = 0;
     if (!::WriteFile(m_handle, buffer, bytesToWrite, &written, nullptr)) {
         SetErrorFromLastError();
@@ -94,16 +96,80 @@ int MyComPort2::Write(const void* buffer, DWORD bytesToWrite) {
     return static_cast<int>(written);
 }
 
+int MyComPort2::WriteAsync(const void* buffer, DWORD bytesToWrite, HANDLE hEvent, OVERLAPPED* pOv) {
+    if (!IsOpen()) return -1;
+    if (buffer == nullptr || bytesToWrite == 0) return 0;
+    ResetError();
+
+    OVERLAPPED localOv = {};
+    OVERLAPPED* ov = pOv ? pOv : &localOv;
+    if (ov->hEvent == nullptr) {
+        ov->hEvent = hEvent ? hEvent : ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    } else if (hEvent) {
+        ov->hEvent = hEvent; // caller-provided event has priority
+    }
+
+    DWORD written = 0;
+    BOOL ok = ::WriteFile(m_handle, buffer, bytesToWrite, &written, ov);
+    if (!ok) {
+        DWORD err = ::GetLastError();
+        if (err != ERROR_IO_PENDING) {
+            m_lastError = err;
+            return -1;
+        }
+        // Wait for completion using the event
+        DWORD waitMs = INFINITE; // optional: could use configured write timeout
+        DWORD wr = ::WaitForSingleObject(ov->hEvent, waitMs);
+        if (wr == WAIT_OBJECT_0) {
+            // Retrieve result
+            BOOL res = ::GetOverlappedResult(m_handle, ov, &written, FALSE);
+            if (!res) {
+                m_lastError = ::GetLastError();
+                return -1;
+            }
+            return static_cast<int>(written);
+        } else if (wr == WAIT_TIMEOUT) {
+            // Cancel I/O on timeout
+            ::CancelIoEx(m_handle, ov);
+            m_lastError = WAIT_TIMEOUT;
+            return -1;
+        } else {
+            // WAIT_FAILED or abandoned
+            m_lastError = ::GetLastError();
+            ::CancelIoEx(m_handle, ov);
+            return -1;
+        }
+    }
+    // completed immediately
+    return static_cast<int>(written);
+}
+
 int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead) {
     if (!IsOpen()) return -1;
+    if (buffer == nullptr || bytesToRead == 0) return 0;
     ResetError();
 
     DWORD evtMask = 0;
     // WaitCommEvent waits until an event in the mask occurs (EV_RXCHAR set by SetCommMask)
-    if (!::WaitCommEvent(m_handle, &evtMask, nullptr)) {
-        SetErrorFromLastError();
-        return -1;
+    OVERLAPPED ovEvt = {};
+    ovEvt.hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    BOOL waitOk = ::WaitCommEvent(m_handle, &evtMask, &ovEvt);
+    if (!waitOk) {
+        DWORD err = ::GetLastError();
+        if (err == ERROR_IO_PENDING) {
+            DWORD wr = ::WaitForSingleObject(ovEvt.hEvent, INFINITE);
+            if (wr != WAIT_OBJECT_0) {
+                ::CloseHandle(ovEvt.hEvent);
+                m_lastError = (wr == WAIT_TIMEOUT) ? WAIT_TIMEOUT : ::GetLastError();
+                return -1;
+            }
+        } else {
+            ::CloseHandle(ovEvt.hEvent);
+            SetErrorFromLastError();
+            return -1;
+        }
     }
+    ::CloseHandle(ovEvt.hEvent);
 
     // Check for RXCHAR event before proceeding
     if ((evtMask & EV_RXCHAR) == 0) {
@@ -112,10 +178,34 @@ int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead) {
     }
 
     DWORD bytes = 0;
-    if (!::ReadFile(m_handle, buffer, bytesToRead, &bytes, nullptr)) {
-        SetErrorFromLastError();
-        return -1;
+    OVERLAPPED ovRead = {};
+    ovRead.hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    BOOL readOk = ::ReadFile(m_handle, buffer, bytesToRead, &bytes, &ovRead);
+    if (!readOk) {
+        DWORD err = ::GetLastError();
+        if (err == ERROR_IO_PENDING) {
+            DWORD wr = ::WaitForSingleObject(ovRead.hEvent, INFINITE);
+            if (wr == WAIT_OBJECT_0) {
+                BOOL res = ::GetOverlappedResult(m_handle, &ovRead, &bytes, FALSE);
+                ::CloseHandle(ovRead.hEvent);
+                if (!res) {
+                    m_lastError = ::GetLastError();
+                    return -1;
+                }
+                return static_cast<int>(bytes);
+            } else {
+                ::CancelIoEx(m_handle, &ovRead);
+                ::CloseHandle(ovRead.hEvent);
+                m_lastError = (wr == WAIT_TIMEOUT) ? WAIT_TIMEOUT : ::GetLastError();
+                return -1;
+            }
+        } else {
+            ::CloseHandle(ovRead.hEvent);
+            m_lastError = err;
+            return -1;
+        }
     }
+    ::CloseHandle(ovRead.hEvent);
     return static_cast<int>(bytes);
 }
 
@@ -127,10 +217,26 @@ int MyComPort2::ReadAllAvailable(std::vector<unsigned char>& outBuffer) {
 
     DWORD evtMask = 0;
     while (true) {
-        if (!::WaitCommEvent(m_handle, &evtMask, nullptr)) {
-            SetErrorFromLastError();
-            return -1;
+        OVERLAPPED ovEvt = {};
+        ovEvt.hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        BOOL waitOk = ::WaitCommEvent(m_handle, &evtMask, &ovEvt);
+        if (!waitOk) {
+            DWORD err = ::GetLastError();
+            if (err == ERROR_IO_PENDING) {
+                DWORD wr = ::WaitForSingleObject(ovEvt.hEvent, INFINITE);
+                if (wr != WAIT_OBJECT_0) {
+                    ::CloseHandle(ovEvt.hEvent);
+                    m_lastError = (wr == WAIT_TIMEOUT) ? WAIT_TIMEOUT : ::GetLastError();
+                    return -1;
+                }
+            } else {
+                ::CloseHandle(ovEvt.hEvent);
+                SetErrorFromLastError();
+                return -1;
+            }
         }
+        ::CloseHandle(ovEvt.hEvent);
+
         if ((evtMask & EV_RXCHAR) == 0) {
             // Ignore other events
             continue;
@@ -153,21 +259,41 @@ int MyComPort2::ReadAllAvailable(std::vector<unsigned char>& outBuffer) {
         std::vector<unsigned char> temp;
         temp.resize(toRead);
         DWORD bytesRead = 0;
-        if (!::ReadFile(m_handle, temp.data(), static_cast<DWORD>(toRead), &bytesRead, nullptr)) {
-            SetErrorFromLastError();
-            return -1;
+        OVERLAPPED ovRead = {};
+        ovRead.hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        BOOL readOk = ::ReadFile(m_handle, temp.data(), static_cast<DWORD>(toRead), &bytesRead, &ovRead);
+        if (!readOk) {
+            DWORD err = ::GetLastError();
+            if (err == ERROR_IO_PENDING) {
+                DWORD wr = ::WaitForSingleObject(ovRead.hEvent, INFINITE);
+                if (wr == WAIT_OBJECT_0) {
+                    BOOL res = ::GetOverlappedResult(m_handle, &ovRead, &bytesRead, FALSE);
+                    ::CloseHandle(ovRead.hEvent);
+                    if (!res) {
+                        m_lastError = ::GetLastError();
+                        return -1;
+                    }
+                } else {
+                    ::CancelIoEx(m_handle, &ovRead);
+                    ::CloseHandle(ovRead.hEvent);
+                    m_lastError = (wr == WAIT_TIMEOUT) ? WAIT_TIMEOUT : ::GetLastError();
+                    return -1;
+                }
+            } else {
+                ::CloseHandle(ovRead.hEvent);
+                m_lastError = err;
+                return -1;
+            }
+        } else {
+            ::CloseHandle(ovRead.hEvent);
         }
         outBuffer.insert(outBuffer.end(), temp.begin(), temp.begin() + bytesRead);
 
-        // If less than queued read, continue; otherwise break if queue drained
         if (bytesRead == 0) break;
-        // Loop again to wait for next RXCHAR or drain remaining
         if (bytesRead < toRead) {
-            // There might still be bytes; continue without an extra event
             continue;
         }
 
-        // After draining, check if more queued
         if (!::ClearCommError(m_handle, &errors, &comStat)) {
             SetErrorFromLastError();
             return -1;
@@ -205,6 +331,10 @@ bool MyComPort2::ConfigurePort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE 
     dcb.fParity = (parity != NOPARITY);
     dcb.fDtrControl = setDtr ? DTR_CONTROL_ENABLE : DTR_CONTROL_DISABLE;
     dcb.fRtsControl = setRts ? RTS_CONTROL_ENABLE : RTS_CONTROL_DISABLE;
+    dcb.fOutxCtsFlow = FALSE;
+    dcb.fOutxDsrFlow = FALSE;
+    dcb.fOutX = FALSE;
+    dcb.fInX = FALSE;
 
     if (!::SetCommState(m_handle, &dcb)) {
         SetErrorFromLastError();

@@ -54,10 +54,10 @@ void Logger::AppendToListBox(const std::wstring& line) noexcept {
     HWND hList = GetDlgItem(m_hDlg, IDC_LOG_LIST);
     if (!hList) return;
     SendMessage(hList, LB_INSERTSTRING, 0, reinterpret_cast<LPARAM>(line.c_str()));
-    LRESULT count = SendMessage(hList, LB_GETCOUNT, 0, 0);
-    if (count > 0) {
-        SendMessage(hList, LB_SETTOPINDEX, (WPARAM)(count - 1), 0);
-    }
+    //LRESULT count = SendMessage(hList, LB_GETCOUNT, 0, 0);
+    //if (count > 0) {
+    //    SendMessage(hList, LB_SETTOPINDEX, (WPARAM)(count - 1), 0);
+    //}
 }
 
 void Logger::AppendToFile(const std::wstring& line) noexcept {
