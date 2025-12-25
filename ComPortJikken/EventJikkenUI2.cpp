@@ -60,7 +60,8 @@ static BOOL OnInitDialog2(HWND hDlg)
 static void OnPortOpen2(HWND hDlg)
 {
     HWND hCombo = GetDlgItem(hDlg, IDC_PORT_NO_COMBO);
-    if (!hCombo) return;
+    if (!hCombo)
+        return;
 
     LRESULT sel = SendMessage(hCombo, CB_GETCURSEL, 0, 0);
     if (sel == CB_ERR)
@@ -172,7 +173,8 @@ static void OnPortCommandSend2(HWND hDlg)
         swprintf_s(msg, L"%lu バイト送信しました。", written);
         AppendLog2(hDlg, msg);
     }
-    if (hEvent) ::CloseHandle(hEvent);
+    if (hEvent)
+        ::CloseHandle(hEvent);
 }
 
 // ダイアログプロシージャ（MYTESTDLGBASE_MAIN2）

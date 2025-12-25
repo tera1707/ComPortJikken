@@ -17,8 +17,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
     hInst = hInstance;
 
-    //DialogBox(hInst, L"MyTestDlgBase_Main", NULL, (DLGPROC)MyDlgProc);
-    DialogBox(hInst, L"MyTestDlgBase_Main2", NULL, (DLGPROC)MyDlgProc2);
+    //DialogBox(hInst, L"MyTestDlgBase_Main", NULL, (DLGPROC)MyDlgProc);    // 同期版
+    DialogBox(hInst, L"MyTestDlgBase_Main2", NULL, (DLGPROC)MyDlgProc2);    // 非同期版
 
     return (int)0;
 }

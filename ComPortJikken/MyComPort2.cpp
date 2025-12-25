@@ -94,7 +94,9 @@ void MyComPort2::Close()
 
 int MyComPort2::Write(const void* buffer, DWORD bytesToWrite)
 {
-    if (!IsOpen()) return -1;
+    if (!IsOpen())
+        return -1;
+
     if (buffer == nullptr || bytesToWrite == 0) return 0;
     ResetError();
 
@@ -109,8 +111,12 @@ int MyComPort2::Write(const void* buffer, DWORD bytesToWrite)
 
 int MyComPort2::WriteAsync(const void* buffer, DWORD bytesToWrite, HANDLE hEvent, OVERLAPPED* pOv)
 {
-    if (!IsOpen()) return -1;
-    if (buffer == nullptr || bytesToWrite == 0) return 0;
+    if (!IsOpen())
+        return -1;
+
+    if (buffer == nullptr || bytesToWrite == 0)
+        return 0;
+
     ResetError();
 
     OVERLAPPED localOv = {};
@@ -169,8 +175,12 @@ int MyComPort2::WriteAsync(const void* buffer, DWORD bytesToWrite, HANDLE hEvent
 
 int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead)
 {
-    if (!IsOpen()) return -1;
-    if (buffer == nullptr || bytesToRead == 0) return 0;
+    if (!IsOpen())
+        return -1;
+
+    if (buffer == nullptr || bytesToRead == 0)
+        return 0;
+
     ResetError();
 
     DWORD evtMask = 0;
@@ -249,7 +259,9 @@ int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead)
 
 int MyComPort2::ReadAllAvailable(std::vector<unsigned char>& outBuffer)
 {
-    if (!IsOpen()) return -1;
+    if (!IsOpen())
+        return -1;
+
     ResetError();
 
     outBuffer.clear();
@@ -369,7 +381,9 @@ int MyComPort2::ReadAllAvailable(std::vector<unsigned char>& outBuffer)
 
 bool MyComPort2::Purge()
 {
-    if (!IsOpen()) return false;
+    if (!IsOpen())
+        return false;
+
     ResetError();
     if (!::PurgeComm(m_handle, PURGE_RXCLEAR | PURGE_TXCLEAR))
     {
@@ -439,12 +453,21 @@ bool MyComPort2::ConfigurePort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE 
 
 bool MyComPort2::StartReceiveThread(ReceiveCallback cb)
 {
-    if (!IsOpen()) return false;
-    if (m_hRecvThread) return true; // already running
+    if (!IsOpen())
+        return false;
+
+    if (m_hRecvThread) 
+        return true; // already running
+
     m_callback = std::move(cb);
-    if (!m_callback) return false;
-    if (InterlockedCompareExchange(&m_recvRunFlag, 1, 0) != 0) return true;
+    if (!m_callback)
+        return false;
+
+    if (InterlockedCompareExchange(&m_recvRunFlag, 1, 0) != 0)
+        return true;
+
     m_hRecvThread = ::CreateThread(nullptr, 0, RecvThreadProcStatic, this, 0, nullptr);
+
     return m_hRecvThread != nullptr;
 }
 
@@ -471,11 +494,25 @@ DWORD MyComPort2::RecvThreadProc()
     unsigned char buf[512];
     while (InterlockedCompareExchange(&m_recvRunFlag, 1, 1) == 1)
     {
-        if (!IsOpen()) { ::Sleep(50); continue; }
+        if (!IsOpen())
+        {
+            ::Sleep(50);
+            continue;
+        }
+
         int n = ReadOnRxEvent(buf, (DWORD)sizeof(buf));
-        if (InterlockedCompareExchange(&m_recvRunFlag, 1, 1) != 1) break;
-        if (n <= 0) { ::Sleep(5); continue; }
-        if (m_callback) m_callback(buf, (size_t)n);
+
+        if (InterlockedCompareExchange(&m_recvRunFlag, 1, 1) != 1)
+            break;
+
+        if (n <= 0)
+        {
+            ::Sleep(5);
+            continue;
+        }
+
+        if (m_callback)
+            m_callback(buf, (size_t)n);
     }
     return 0;
 }
