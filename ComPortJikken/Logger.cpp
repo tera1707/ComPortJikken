@@ -3,23 +3,30 @@
 #include <vector>
 
 Logger::Logger(HWND hDlg, const wchar_t* logFilePath)
-    : m_hDlg(hDlg) {
-    if (logFilePath) {
+    : m_hDlg(hDlg)
+{
+    if (logFilePath)
+    {
         SetLogFile(logFilePath);
     }
 }
 
-Logger::~Logger() {
-    if (m_file != INVALID_HANDLE_VALUE && m_file != nullptr) {
+Logger::~Logger()
+{
+    if (m_file != INVALID_HANDLE_VALUE && m_file != nullptr)
+    {
         ::CloseHandle(m_file);
         m_file = INVALID_HANDLE_VALUE;
     }
 }
 
-bool Logger::SetLogFile(const wchar_t* logFilePath) {
-    if (!logFilePath || !*logFilePath) {
+bool Logger::SetLogFile(const wchar_t* logFilePath)
+{
+    if (!logFilePath || !*logFilePath)
+    {
         // Close existing file if any
-        if (m_file != INVALID_HANDLE_VALUE && m_file != nullptr) {
+        if (m_file != INVALID_HANDLE_VALUE && m_file != nullptr)
+        {
             ::CloseHandle(m_file);
             m_file = INVALID_HANDLE_VALUE;
         }
@@ -27,7 +34,8 @@ bool Logger::SetLogFile(const wchar_t* logFilePath) {
     }
 
     // Ensure previous handle is closed
-    if (m_file != INVALID_HANDLE_VALUE && m_file != nullptr) {
+    if (m_file != INVALID_HANDLE_VALUE && m_file != nullptr)
+    {
         ::CloseHandle(m_file);
         m_file = INVALID_HANDLE_VALUE;
     }
@@ -42,14 +50,16 @@ bool Logger::SetLogFile(const wchar_t* logFilePath) {
     return m_file != INVALID_HANDLE_VALUE;
 }
 
-void Logger::Append(const wchar_t* text) noexcept {
+void Logger::Append(const wchar_t* text) noexcept
+{
     if (!text) return;
     std::wstring line = MakeTimestampedLine(text);
     AppendToListBox(line);
     AppendToFile(line);
 }
 
-void Logger::AppendToListBox(const std::wstring& line) noexcept {
+void Logger::AppendToListBox(const std::wstring& line) noexcept
+{
     if (!m_hDlg) return;
     HWND hList = GetDlgItem(m_hDlg, IDC_LOG_LIST);
     if (!hList) return;
@@ -60,7 +70,8 @@ void Logger::AppendToListBox(const std::wstring& line) noexcept {
     //}
 }
 
-void Logger::AppendToFile(const std::wstring& line) noexcept {
+void Logger::AppendToFile(const std::wstring& line) noexcept
+{
     if (m_file == INVALID_HANDLE_VALUE || m_file == nullptr) return;
     // Add CRLF
     std::wstring withCrLf = line;
@@ -77,7 +88,8 @@ void Logger::AppendToFile(const std::wstring& line) noexcept {
     ::WriteFile(m_file, buf.data(), (DWORD)buf.size(), &written, nullptr);
 }
 
-std::wstring Logger::MakeTimestampedLine(const wchar_t* text) noexcept {
+std::wstring Logger::MakeTimestampedLine(const wchar_t* text) noexcept
+{
     SYSTEMTIME st{};
     ::GetLocalTime(&st);
     wchar_t header[128];

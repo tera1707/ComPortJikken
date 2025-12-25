@@ -27,8 +27,10 @@ static BOOL OnInitDialog2(HWND hDlg)
     // ログファイルの既定設定
     wchar_t path[MAX_PATH];
     DWORD len = ::GetModuleFileNameW(nullptr, path, MAX_PATH);
-    if (len > 0) {
-        for (DWORD i = len; i > 0; --i) {
+    if (len > 0)
+    {
+        for (DWORD i = len; i > 0; --i)
+        {
             if (path[i-1] == L'\\' || path[i-1] == L'/') { path[i] = L'\0'; break; }
         }
         std::wstring logPath = std::wstring(path) + L"Logs2.txt";
@@ -37,9 +39,11 @@ static BOOL OnInitDialog2(HWND hDlg)
 
     // COMポートコンボを初期化
     HWND hCombo = GetDlgItem(hDlg, IDC_PORT_NO_COMBO);
-    if (hCombo) {
+    if (hCombo)
+    {
         wchar_t buf[16];
-        for (int i = 1; i <= 9; ++i) {
+        for (int i = 1; i <= 9; ++i)
+        {
             swprintf_s(buf, L"COM%d", i);
             SendMessage(hCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(buf));
         }
@@ -59,30 +63,37 @@ static void OnPortOpen2(HWND hDlg)
     if (!hCombo) return;
 
     LRESULT sel = SendMessage(hCombo, CB_GETCURSEL, 0, 0);
-    if (sel == CB_ERR) {
+    if (sel == CB_ERR)
+    {
         int selIndex = (g_DefaultComPortIndex2 >= 0 && g_DefaultComPortIndex2 < 9) ? g_DefaultComPortIndex2 : 0;
         SendMessage(hCombo, CB_SETCURSEL, (WPARAM)selIndex, 0);
         sel = selIndex;
     }
 
     wchar_t portName[32] = {};
-    if (SendMessage(hCombo, CB_GETLBTEXT, (WPARAM)sel, (LPARAM)portName) == CB_ERR) {
+    if (SendMessage(hCombo, CB_GETLBTEXT, (WPARAM)sel, (LPARAM)portName) == CB_ERR)
+    {
         AppendLog2(hDlg, L"ポート名の取得に失敗しました。");
         return;
     }
 
-    if (!g_ComPort2.Open(portName)) {
+    if (!g_ComPort2.Open(portName))
+    {
         wchar_t msg[128];
         swprintf_s(msg, L"ポートを開けませんでした。(Err=%lu)", g_ComPort2.LastError());
         AppendLog2(hDlg, msg);
-    } else {
+    }
+    else
+    {
         AppendLog2(hDlg, L"ポートをオープンしました。");
         // 受信コールバック設定してスレッド起動
-        g_ComPort2.StartReceiveThread([hDlg](const unsigned char* data, size_t len) {
+        g_ComPort2.StartReceiveThread([hDlg](const unsigned char* data, size_t len)
+        {
             std::string text(reinterpret_cast<const char*>(data), reinterpret_cast<const char*>(data) + len);
             wchar_t wbuf[1024];
             int wlen = MultiByteToWideChar(CP_ACP, 0, text.c_str(), (int)text.size(), wbuf, (int)_countof(wbuf) - 1);
-            if (wlen > 0) {
+            if (wlen > 0)
+            {
                 wbuf[wlen] = L'\0';
                 AppendLog2(hDlg, L"受信しました。");
                 AppendLog2(hDlg, wbuf);
@@ -96,28 +107,34 @@ static void OnPortClose2(HWND hDlg)
     UNREFERENCED_PARAMETER(hDlg);
     // スレッド停止 -> ポートクローズ
     g_ComPort2.StopReceiveThread();
-    if (g_ComPort2.IsOpen()) {
+    if (g_ComPort2.IsOpen())
+    {
         g_ComPort2.Close();
         AppendLog2(hDlg, L"ポートをクローズしました。");
-    } else {
+    }
+    else
+    {
         AppendLog2(hDlg, L"ポートは開かれていません。");
     }
 }
 
 static void OnPortCommandSend2(HWND hDlg)
 {
-    if (!g_ComPort2.IsOpen()) {
+    if (!g_ComPort2.IsOpen())
+    {
         AppendLog2(hDlg, L"ポートが開いていません。");
         return;
     }
     wchar_t wcmd[512] = {};
     int wlen = GetDlgItemTextW(hDlg, IDC_PORT_SEND_COMMAND_STRING, wcmd, (int)_countof(wcmd));
-    if (wlen <= 0) {
+    if (wlen <= 0)
+    {
         AppendLog2(hDlg, L"送信文字列が空です。");
         return;
     }
     int alen = WideCharToMultiByte(CP_ACP, 0, wcmd, wlen, nullptr, 0, nullptr, nullptr);
-    if (alen <= 0) {
+    if (alen <= 0)
+    {
         AppendLog2(hDlg, L"文字列の変換に失敗しました。");
         return;
     }
@@ -129,19 +146,26 @@ static void OnPortCommandSend2(HWND hDlg)
     HANDLE hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
     ov.hEvent = hEvent;
     int res = g_ComPort2.WriteAsync(acmd.data(), (DWORD)acmd.size(), hEvent, &ov);
-    if (res < 0) {
+    if (res < 0)
+    {
         wchar_t msg[128];
         swprintf_s(msg, L"送信に失敗しました。(Err=%lu)", g_ComPort2.LastError());
         AppendLog2(hDlg, msg);
-    } else {
+    }
+    else
+    {
         DWORD written = 0;
-        if (res == 0) {
+        if (res == 0)
+        {
             // 完了待ち（WriteAsync 内で待機済みなので、ここでは結果取得のみ）
-            if (!::GetOverlappedResult(g_ComPort2.IsOpen() ? (HANDLE)nullptr : (HANDLE)nullptr, &ov, &written, FALSE)) {
+            if (!::GetOverlappedResult(g_ComPort2.IsOpen() ? (HANDLE)nullptr : (HANDLE)nullptr, &ov, &written, FALSE))
+            {
                 // 上記はダミー。WriteAsyncで完了済みのため、書き込み済みバイトは不明ならメッセージのみ
                 written = (DWORD)acmd.size();
             }
-        } else {
+        }
+        else
+        {
             written = (DWORD)res;
         }
         wchar_t msg[128];
@@ -154,11 +178,13 @@ static void OnPortCommandSend2(HWND hDlg)
 // ダイアログプロシージャ（MYTESTDLGBASE_MAIN2）
 BOOL CALLBACK MyDlgProc2(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
 {
-    switch (msg) {
+    switch (msg)
+    {
     case WM_INITDIALOG:
         return OnInitDialog2(hDlg);
     case WM_COMMAND:
-        switch (LOWORD(wp)) {
+        switch (LOWORD(wp))
+        {
         case IDOK:
             EndDialog(hDlg, IDOK);
             return TRUE;
@@ -176,10 +202,10 @@ BOOL CALLBACK MyDlgProc2(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
             // 受信はバックグラウンドスレッドが継続実施
             return TRUE;
         case IDC_DEVICE_STOP:
-            OnDeviceStop(hDlg);
+            //OnDeviceStop(hDlg);
             return TRUE;
         case IDC_DEVICE_START:
-            OnDeviceStart(hDlg);
+            //OnDeviceStart(hDlg);
             return TRUE;
         }
         return FALSE;

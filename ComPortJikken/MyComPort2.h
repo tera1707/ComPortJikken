@@ -6,7 +6,8 @@
 
 // Event-driven serial COM port wrapper
 // Uses WaitCommEvent to wait for RXCHAR before performing ReadFile.
-class MyComPort2 {
+class MyComPort2
+{
 public:
     using ReceiveCallback = std::function<void(const unsigned char* data, size_t len)>;
 

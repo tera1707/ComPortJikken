@@ -29,9 +29,11 @@ BOOL OnInitDialog(HWND hDlg)
     // Optional: set default log file in executable directory
     wchar_t path[MAX_PATH];
     DWORD len = ::GetModuleFileNameW(nullptr, path, MAX_PATH);
-    if (len > 0) {
+    if (len > 0)
+    {
         // Replace filename with Logs.txt
-        for (DWORD i = len; i > 0; --i) {
+        for (DWORD i = len; i > 0; --i)
+        {
             if (path[i-1] == L'\\' || path[i-1] == L'/') { path[i] = L'\0'; break; }
         }
         std::wstring logPath = std::wstring(path) + L"Logs.txt";
@@ -39,9 +41,11 @@ BOOL OnInitDialog(HWND hDlg)
     }
 
     HWND hCombo = GetDlgItem(hDlg, IDC_PORT_NO_COMBO);
-    if (hCombo) {
+    if (hCombo)
+    {
         wchar_t buf[16];
-        for (int i = 1; i <= 9; ++i) {
+        for (int i = 1; i <= 9; ++i)
+        {
             swprintf_s(buf, L"COM%d", i);
             SendMessage(hCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(buf));
         }
@@ -56,7 +60,8 @@ BOOL OnInitDialog(HWND hDlg)
 // 受信処理（受信バッファが空になるまで）
 void OnReceiveResponse(HWND hDlg)
 {
-    if (!g_ComPort.IsOpen()) {
+    if (!g_ComPort.IsOpen())
+    {
         AppendLog(hDlg, L"受信できません。ポートが開いていません。");
         return;
     }
@@ -65,20 +70,23 @@ void OnReceiveResponse(HWND hDlg)
 
     std::vector<unsigned char> rx;
     int total = g_ComPort.ReadAllAvailable(rx);
-    if (total < 0) {
+    if (total < 0)
+    {
         wchar_t msg[128];
         swprintf_s(msg, L"受信に失敗しました。(Err=%lu)", g_ComPort.LastError());
         AppendLog(hDlg, msg);
         return;
     }
-    if (total == 0) {
+    if (total == 0)
+    {
         AppendLog(hDlg, L"受信データはありません。");
         return;
     }
     std::string text(rx.begin(), rx.end());
     wchar_t wbuf[1024];
     int wlen = MultiByteToWideChar(CP_ACP, 0, text.c_str(), (int)text.size(), wbuf, (int)_countof(wbuf) - 1);
-    if (wlen <= 0) {
+    if (wlen <= 0)
+    {
         AppendLog(hDlg, L"受信データの文字コード変換に失敗しました。");
         return;
     }
@@ -95,85 +103,100 @@ void OnPortOpen(HWND hDlg)
     if (!hCombo) return;
 
     LRESULT sel = SendMessage(hCombo, CB_GETCURSEL, 0, 0);
-    if (sel == CB_ERR) {
+    if (sel == CB_ERR)
+    {
         int selIndex = (g_DefaultComPortIndex >= 0 && g_DefaultComPortIndex < 9) ? g_DefaultComPortIndex : 0;
         SendMessage(hCombo, CB_SETCURSEL, (WPARAM)selIndex, 0);
         sel = selIndex;
     }
 
     wchar_t portName[32] = {};
-    if (SendMessage(hCombo, CB_GETLBTEXT, (WPARAM)sel, (LPARAM)portName) == CB_ERR) {
+    if (SendMessage(hCombo, CB_GETLBTEXT, (WPARAM)sel, (LPARAM)portName) == CB_ERR)
+    {
         AppendLog(hDlg, L"ポート名の取得に失敗しました。");
         return;
     }
 
-    if (!g_ComPort.Open(portName)) {
+    if (!g_ComPort.Open(portName))
+    {
         wchar_t msg[128];
         swprintf_s(msg, L"ポートを開けませんでした。(Err=%lu)", g_ComPort.LastError());
         AppendLog(hDlg, msg);
-    } else {
+    }
+    else
+    {
         AppendLog(hDlg, L"ポートをオープンしました。");
     }
 }
 
-// ポートを閉じる
-void OnPortClose(HWND hDlg)
+static void OnPortClose(HWND hDlg)
 {
-    if (g_ComPort.IsOpen()) {
+    if (g_ComPort.IsOpen())
+    {
         g_ComPort.Close();
         AppendLog(hDlg, L"ポートをクローズしました。");
-    } else {
+    }
+    else
+    {
         AppendLog(hDlg, L"ポートは開かれていません。");
     }
 }
 
-// デバイス停止
-void OnDeviceStop(HWND hDlg)
+static void OnDeviceStop(HWND hDlg)
 {
     wchar_t hwid[256] = {};
-    if (GetDlgItemTextW(hDlg, IDC_TARGET_DEVICE, hwid, (int)_countof(hwid)) <= 0) {
+    if (GetDlgItemTextW(hDlg, IDC_TARGET_DEVICE, hwid, (int)_countof(hwid)) <= 0)
+    {
         AppendLog(hDlg, L"停止対象のハードウェアIDを入力してください。");
         return;
     }
 
-    if (MyDeviceHandler::DisableDeviceByHardwareId(hwid)) {
+    if (MyDeviceHandler::DisableDeviceByHardwareId(hwid))
+    {
         AppendLog(hDlg, L"デバイスを停止しました。");
-    } else {
+    }
+    else
+    {
         AppendLog(hDlg, L"デバイスの停止に失敗しました。");
     }
 }
 
-// デバイス有効化
-void OnDeviceStart(HWND hDlg)
+static void OnDeviceStart(HWND hDlg)
 {
     wchar_t hwid[256] = {};
-    if (GetDlgItemTextW(hDlg, IDC_TARGET_DEVICE, hwid, (int)_countof(hwid)) <= 0) {
+    if (GetDlgItemTextW(hDlg, IDC_TARGET_DEVICE, hwid, (int)_countof(hwid)) <= 0)
+    {
         AppendLog(hDlg, L"有効化対象のハードウェアIDを入力してください。");
         return;
     }
 
-    if (MyDeviceHandler::EnableDeviceByHardwareId(hwid)) {
+    if (MyDeviceHandler::EnableDeviceByHardwareId(hwid))
+    {
         AppendLog(hDlg, L"デバイスを有効にしました。");
-    } else {
+    }
+    else
+    {
         AppendLog(hDlg, L"デバイスの有効化に失敗しました。");
     }
 }
 
-// 送信
-void OnPortCommandSend(HWND hDlg)
+static void OnPortCommandSend(HWND hDlg)
 {
-    if (!g_ComPort.IsOpen()) {
+    if (!g_ComPort.IsOpen())
+    {
         AppendLog(hDlg, L"ポートが開いていません。");
         return;
     }
     wchar_t wcmd[512] = {};
     int wlen = GetDlgItemTextW(hDlg, IDC_PORT_SEND_COMMAND_STRING, wcmd, (int)_countof(wcmd));
-    if (wlen <= 0) {
+    if (wlen <= 0)
+    {
         AppendLog(hDlg, L"送信文字列が空です。");
         return;
     }
     int alen = WideCharToMultiByte(CP_ACP, 0, wcmd, wlen, nullptr, 0, nullptr, nullptr);
-    if (alen <= 0) {
+    if (alen <= 0)
+    {
         AppendLog(hDlg, L"文字列の変換に失敗しました。");
         return;
     }
@@ -181,11 +204,14 @@ void OnPortCommandSend(HWND hDlg)
     WideCharToMultiByte(CP_ACP, 0, wcmd, wlen, &acmd[0], alen, nullptr, nullptr);
 
     int written = g_ComPort.Write(acmd.data(), (DWORD)acmd.size());
-    if (written < 0) {
+    if (written < 0)
+    {
         wchar_t msg[128];
         swprintf_s(msg, L"送信に失敗しました。(Err=%lu)", g_ComPort.LastError());
         AppendLog(hDlg, msg);
-    } else {
+    }
+    else
+    {
         wchar_t msg[128];
         swprintf_s(msg, L"%d バイト送信しました。", written);
         AppendLog(hDlg, msg);
@@ -195,11 +221,13 @@ void OnPortCommandSend(HWND hDlg)
 // ダイアログプロシージャ
 BOOL CALLBACK MyDlgProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
 {
-    switch (msg) {
+    switch (msg)
+    {
     case WM_INITDIALOG:
         return OnInitDialog(hDlg);
     case WM_COMMAND:
-        switch (LOWORD(wp)) {
+        switch (LOWORD(wp))
+        {
         case IDOK:
             EndDialog(hDlg, IDOK);
             return TRUE;

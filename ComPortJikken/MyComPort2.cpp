@@ -3,7 +3,8 @@
 MyComPort2::MyComPort2() {}
 MyComPort2::~MyComPort2() { Close(); }
 
-MyComPort2::MyComPort2(MyComPort2&& other) noexcept {
+MyComPort2::MyComPort2(MyComPort2&& other) noexcept
+{
     m_handle = other.m_handle;
     m_lastError = other.m_lastError;
     m_hRecvThread = other.m_hRecvThread;
@@ -15,8 +16,10 @@ MyComPort2::MyComPort2(MyComPort2&& other) noexcept {
     other.m_recvRunFlag = 0;
 }
 
-MyComPort2& MyComPort2::operator=(MyComPort2&& other) noexcept {
-    if (this != &other) {
+MyComPort2& MyComPort2::operator=(MyComPort2&& other) noexcept
+{
+    if (this != &other)
+    {
         Close();
         m_handle = other.m_handle;
         m_lastError = other.m_lastError;
@@ -39,7 +42,8 @@ bool MyComPort2::Open(const wchar_t* portName,
               DWORD readTimeoutMs,
               DWORD writeTimeoutMs,
               bool setDtr,
-              bool setRts) {
+              bool setRts)
+{
     ResetError();
     Close();
 
@@ -52,19 +56,22 @@ bool MyComPort2::Open(const wchar_t* portName,
                              FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
                              nullptr);
 
-    if (m_handle == INVALID_HANDLE_VALUE) {
+    if (m_handle == INVALID_HANDLE_VALUE)
+    {
         SetErrorFromLastError();
         return false;
     }
 
-    if (!ConfigurePort(baudRate, byteSize, parity, stopBits, readTimeoutMs, writeTimeoutMs, setDtr, setRts)) {
+    if (!ConfigurePort(baudRate, byteSize, parity, stopBits, readTimeoutMs, writeTimeoutMs, setDtr, setRts))
+    {
         Close();
         return false;
     }
 
     // Set to receive character event
     DWORD mask = EV_RXCHAR; // can include EV_ERR, EV_RXFLAG if needed
-    if (!::SetCommMask(m_handle, mask)) {
+    if (!::SetCommMask(m_handle, mask))
+    {
         SetErrorFromLastError();
         Close();
         return false;
@@ -73,67 +80,83 @@ bool MyComPort2::Open(const wchar_t* portName,
     return true;
 }
 
-void MyComPort2::Close() {
+void MyComPort2::Close()
+{
     // stop receive thread first
     StopReceiveThread();
 
-    if (m_handle != INVALID_HANDLE_VALUE && m_handle != nullptr) {
+    if (m_handle != INVALID_HANDLE_VALUE && m_handle != nullptr)
+    {
         ::CloseHandle(m_handle);
         m_handle = INVALID_HANDLE_VALUE;
     }
 }
 
-int MyComPort2::Write(const void* buffer, DWORD bytesToWrite) {
+int MyComPort2::Write(const void* buffer, DWORD bytesToWrite)
+{
     if (!IsOpen()) return -1;
     if (buffer == nullptr || bytesToWrite == 0) return 0;
     ResetError();
 
     DWORD written = 0;
-    if (!::WriteFile(m_handle, buffer, bytesToWrite, &written, nullptr)) {
+    if (!::WriteFile(m_handle, buffer, bytesToWrite, &written, nullptr))
+    {
         SetErrorFromLastError();
         return -1;
     }
     return static_cast<int>(written);
 }
 
-int MyComPort2::WriteAsync(const void* buffer, DWORD bytesToWrite, HANDLE hEvent, OVERLAPPED* pOv) {
+int MyComPort2::WriteAsync(const void* buffer, DWORD bytesToWrite, HANDLE hEvent, OVERLAPPED* pOv)
+{
     if (!IsOpen()) return -1;
     if (buffer == nullptr || bytesToWrite == 0) return 0;
     ResetError();
 
     OVERLAPPED localOv = {};
     OVERLAPPED* ov = pOv ? pOv : &localOv;
-    if (ov->hEvent == nullptr) {
+    if (ov->hEvent == nullptr)
+    {
         ov->hEvent = hEvent ? hEvent : ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
-    } else if (hEvent) {
+    }
+    else if (hEvent)
+    {
         ov->hEvent = hEvent; // caller-provided event has priority
     }
 
     DWORD written = 0;
     BOOL ok = ::WriteFile(m_handle, buffer, bytesToWrite, &written, ov);
-    if (!ok) {
+    if (!ok)
+    {
         DWORD err = ::GetLastError();
-        if (err != ERROR_IO_PENDING) {
+        if (err != ERROR_IO_PENDING)
+        {
             m_lastError = err;
             return -1;
         }
         // Wait for completion using the event
         DWORD waitMs = INFINITE; // optional: could use configured write timeout
         DWORD wr = ::WaitForSingleObject(ov->hEvent, waitMs);
-        if (wr == WAIT_OBJECT_0) {
+        if (wr == WAIT_OBJECT_0)
+        {
             // Retrieve result
             BOOL res = ::GetOverlappedResult(m_handle, ov, &written, FALSE);
-            if (!res) {
+            if (!res)
+            {
                 m_lastError = ::GetLastError();
                 return -1;
             }
             return static_cast<int>(written);
-        } else if (wr == WAIT_TIMEOUT) {
+        }
+        else if (wr == WAIT_TIMEOUT)
+        {
             // Cancel I/O on timeout
             ::CancelIoEx(m_handle, ov);
             m_lastError = WAIT_TIMEOUT;
             return -1;
-        } else {
+        }
+        else
+        {
             // WAIT_FAILED or abandoned
             m_lastError = ::GetLastError();
             ::CancelIoEx(m_handle, ov);
@@ -144,7 +167,8 @@ int MyComPort2::WriteAsync(const void* buffer, DWORD bytesToWrite, HANDLE hEvent
     return static_cast<int>(written);
 }
 
-int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead) {
+int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead)
+{
     if (!IsOpen()) return -1;
     if (buffer == nullptr || bytesToRead == 0) return 0;
     ResetError();
@@ -154,16 +178,21 @@ int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead) {
     OVERLAPPED ovEvt = {};
     ovEvt.hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
     BOOL waitOk = ::WaitCommEvent(m_handle, &evtMask, &ovEvt);
-    if (!waitOk) {
+    if (!waitOk)
+    {
         DWORD err = ::GetLastError();
-        if (err == ERROR_IO_PENDING) {
+        if (err == ERROR_IO_PENDING)
+        {
             DWORD wr = ::WaitForSingleObject(ovEvt.hEvent, INFINITE);
-            if (wr != WAIT_OBJECT_0) {
+            if (wr != WAIT_OBJECT_0)
+            {
                 ::CloseHandle(ovEvt.hEvent);
                 m_lastError = (wr == WAIT_TIMEOUT) ? WAIT_TIMEOUT : ::GetLastError();
                 return -1;
             }
-        } else {
+        }
+        else
+        {
             ::CloseHandle(ovEvt.hEvent);
             SetErrorFromLastError();
             return -1;
@@ -172,7 +201,8 @@ int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead) {
     ::CloseHandle(ovEvt.hEvent);
 
     // Check for RXCHAR event before proceeding
-    if ((evtMask & EV_RXCHAR) == 0) {
+    if ((evtMask & EV_RXCHAR) == 0)
+    {
         // Not a receive event; nothing to read now.
         return 0;
     }
@@ -181,25 +211,33 @@ int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead) {
     OVERLAPPED ovRead = {};
     ovRead.hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
     BOOL readOk = ::ReadFile(m_handle, buffer, bytesToRead, &bytes, &ovRead);
-    if (!readOk) {
+    if (!readOk)
+    {
         DWORD err = ::GetLastError();
-        if (err == ERROR_IO_PENDING) {
+        if (err == ERROR_IO_PENDING)
+        {
             DWORD wr = ::WaitForSingleObject(ovRead.hEvent, INFINITE);
-            if (wr == WAIT_OBJECT_0) {
+            if (wr == WAIT_OBJECT_0)
+            {
                 BOOL res = ::GetOverlappedResult(m_handle, &ovRead, &bytes, FALSE);
                 ::CloseHandle(ovRead.hEvent);
-                if (!res) {
+                if (!res)
+                {
                     m_lastError = ::GetLastError();
                     return -1;
                 }
                 return static_cast<int>(bytes);
-            } else {
+            }
+            else
+            {
                 ::CancelIoEx(m_handle, &ovRead);
                 ::CloseHandle(ovRead.hEvent);
                 m_lastError = (wr == WAIT_TIMEOUT) ? WAIT_TIMEOUT : ::GetLastError();
                 return -1;
             }
-        } else {
+        }
+        else
+        {
             ::CloseHandle(ovRead.hEvent);
             m_lastError = err;
             return -1;
@@ -209,27 +247,34 @@ int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead) {
     return static_cast<int>(bytes);
 }
 
-int MyComPort2::ReadAllAvailable(std::vector<unsigned char>& outBuffer) {
+int MyComPort2::ReadAllAvailable(std::vector<unsigned char>& outBuffer)
+{
     if (!IsOpen()) return -1;
     ResetError();
 
     outBuffer.clear();
 
     DWORD evtMask = 0;
-    while (true) {
+    while (true)
+    {
         OVERLAPPED ovEvt = {};
         ovEvt.hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
         BOOL waitOk = ::WaitCommEvent(m_handle, &evtMask, &ovEvt);
-        if (!waitOk) {
+        if (!waitOk)
+        {
             DWORD err = ::GetLastError();
-            if (err == ERROR_IO_PENDING) {
+            if (err == ERROR_IO_PENDING)
+            {
                 DWORD wr = ::WaitForSingleObject(ovEvt.hEvent, INFINITE);
-                if (wr != WAIT_OBJECT_0) {
+                if (wr != WAIT_OBJECT_0)
+                {
                     ::CloseHandle(ovEvt.hEvent);
                     m_lastError = (wr == WAIT_TIMEOUT) ? WAIT_TIMEOUT : ::GetLastError();
                     return -1;
                 }
-            } else {
+            }
+            else
+            {
                 ::CloseHandle(ovEvt.hEvent);
                 SetErrorFromLastError();
                 return -1;
@@ -237,7 +282,8 @@ int MyComPort2::ReadAllAvailable(std::vector<unsigned char>& outBuffer) {
         }
         ::CloseHandle(ovEvt.hEvent);
 
-        if ((evtMask & EV_RXCHAR) == 0) {
+        if ((evtMask & EV_RXCHAR) == 0)
+        {
             // Ignore other events
             continue;
         }
@@ -245,12 +291,14 @@ int MyComPort2::ReadAllAvailable(std::vector<unsigned char>& outBuffer) {
         // Query how many bytes are in input queue
         COMSTAT comStat = {};
         DWORD errors = 0;
-        if (!::ClearCommError(m_handle, &errors, &comStat)) {
+        if (!::ClearCommError(m_handle, &errors, &comStat))
+        {
             SetErrorFromLastError();
             return -1;
         }
 
-        if (comStat.cbInQue == 0) {
+        if (comStat.cbInQue == 0)
+        {
             // No bytes queued; break to avoid tight loop
             break;
         }
@@ -262,43 +310,56 @@ int MyComPort2::ReadAllAvailable(std::vector<unsigned char>& outBuffer) {
         OVERLAPPED ovRead = {};
         ovRead.hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
         BOOL readOk = ::ReadFile(m_handle, temp.data(), static_cast<DWORD>(toRead), &bytesRead, &ovRead);
-        if (!readOk) {
+        if (!readOk)
+        {
             DWORD err = ::GetLastError();
-            if (err == ERROR_IO_PENDING) {
+            if (err == ERROR_IO_PENDING)
+            {
                 DWORD wr = ::WaitForSingleObject(ovRead.hEvent, INFINITE);
-                if (wr == WAIT_OBJECT_0) {
+                if (wr == WAIT_OBJECT_0)
+                {
                     BOOL res = ::GetOverlappedResult(m_handle, &ovRead, &bytesRead, FALSE);
                     ::CloseHandle(ovRead.hEvent);
-                    if (!res) {
+                    if (!res)
+                    {
                         m_lastError = ::GetLastError();
                         return -1;
                     }
-                } else {
+                }
+                else
+                {
                     ::CancelIoEx(m_handle, &ovRead);
                     ::CloseHandle(ovRead.hEvent);
                     m_lastError = (wr == WAIT_TIMEOUT) ? WAIT_TIMEOUT : ::GetLastError();
                     return -1;
                 }
-            } else {
+            }
+            else
+            {
                 ::CloseHandle(ovRead.hEvent);
                 m_lastError = err;
                 return -1;
             }
-        } else {
+        }
+        else
+        {
             ::CloseHandle(ovRead.hEvent);
         }
         outBuffer.insert(outBuffer.end(), temp.begin(), temp.begin() + bytesRead);
 
         if (bytesRead == 0) break;
-        if (bytesRead < toRead) {
+        if (bytesRead < toRead)
+        {
             continue;
         }
 
-        if (!::ClearCommError(m_handle, &errors, &comStat)) {
+        if (!::ClearCommError(m_handle, &errors, &comStat))
+        {
             SetErrorFromLastError();
             return -1;
         }
-        if (comStat.cbInQue == 0) {
+        if (comStat.cbInQue == 0)
+        {
             break;
         }
     }
@@ -306,20 +367,24 @@ int MyComPort2::ReadAllAvailable(std::vector<unsigned char>& outBuffer) {
     return static_cast<int>(outBuffer.size());
 }
 
-bool MyComPort2::Purge() {
+bool MyComPort2::Purge()
+{
     if (!IsOpen()) return false;
     ResetError();
-    if (!::PurgeComm(m_handle, PURGE_RXCLEAR | PURGE_TXCLEAR)) {
+    if (!::PurgeComm(m_handle, PURGE_RXCLEAR | PURGE_TXCLEAR))
+    {
         SetErrorFromLastError();
         return false;
     }
     return true;
 }
 
-bool MyComPort2::ConfigurePort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts) {
+bool MyComPort2::ConfigurePort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts)
+{
     DCB dcb = {};
     dcb.DCBlength = sizeof(DCB);
-    if (!::GetCommState(m_handle, &dcb)) {
+    if (!::GetCommState(m_handle, &dcb))
+    {
         SetErrorFromLastError();
         return false;
     }
@@ -336,7 +401,8 @@ bool MyComPort2::ConfigurePort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE 
     dcb.fOutX = FALSE;
     dcb.fInX = FALSE;
 
-    if (!::SetCommState(m_handle, &dcb)) {
+    if (!::SetCommState(m_handle, &dcb))
+    {
         SetErrorFromLastError();
         return false;
     }
@@ -348,13 +414,15 @@ bool MyComPort2::ConfigurePort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE 
     timeouts.WriteTotalTimeoutMultiplier = 0;
     timeouts.WriteTotalTimeoutConstant = writeTimeoutMs;
 
-    if (!::SetCommTimeouts(m_handle, &timeouts)) {
+    if (!::SetCommTimeouts(m_handle, &timeouts))
+    {
         SetErrorFromLastError();
         return false;
     }
 
     // Set buffer sizes (optional reasonable defaults)
-    if (!::SetupComm(m_handle, 4096, 4096)) {
+    if (!::SetupComm(m_handle, 4096, 4096))
+    {
         SetErrorFromLastError();
         return false;
     }
@@ -369,7 +437,8 @@ bool MyComPort2::ConfigurePort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE 
 
 // ---- Receive thread management ----
 
-bool MyComPort2::StartReceiveThread(ReceiveCallback cb) {
+bool MyComPort2::StartReceiveThread(ReceiveCallback cb)
+{
     if (!IsOpen()) return false;
     if (m_hRecvThread) return true; // already running
     m_callback = std::move(cb);
@@ -379,9 +448,12 @@ bool MyComPort2::StartReceiveThread(ReceiveCallback cb) {
     return m_hRecvThread != nullptr;
 }
 
-void MyComPort2::StopReceiveThread() {
-    if (InterlockedCompareExchange(&m_recvRunFlag, 0, 1) == 1) {
-        if (m_hRecvThread) {
+void MyComPort2::StopReceiveThread()
+{
+    if (InterlockedCompareExchange(&m_recvRunFlag, 0, 1) == 1)
+    {
+        if (m_hRecvThread)
+        {
             ::WaitForSingleObject(m_hRecvThread, 3000);
             ::CloseHandle(m_hRecvThread);
             m_hRecvThread = nullptr;
@@ -389,13 +461,16 @@ void MyComPort2::StopReceiveThread() {
     }
 }
 
-DWORD WINAPI MyComPort2::RecvThreadProcStatic(LPVOID lpParam) {
+DWORD WINAPI MyComPort2::RecvThreadProcStatic(LPVOID lpParam)
+{
     return reinterpret_cast<MyComPort2*>(lpParam)->RecvThreadProc();
 }
 
-DWORD MyComPort2::RecvThreadProc() {
+DWORD MyComPort2::RecvThreadProc()
+{
     unsigned char buf[512];
-    while (InterlockedCompareExchange(&m_recvRunFlag, 1, 1) == 1) {
+    while (InterlockedCompareExchange(&m_recvRunFlag, 1, 1) == 1)
+    {
         if (!IsOpen()) { ::Sleep(50); continue; }
         int n = ReadOnRxEvent(buf, (DWORD)sizeof(buf));
         if (InterlockedCompareExchange(&m_recvRunFlag, 1, 1) != 1) break;

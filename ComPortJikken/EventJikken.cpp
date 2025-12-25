@@ -7,7 +7,7 @@
 HINSTANCE hInst;
 
 // このコード モジュールに含まれる関数の宣言を転送します:
-//BOOL CALLBACK MyDlgProc(HWND, UINT, WPARAM, LPARAM);
+
 BOOL CALLBACK MyDlgProc2(HWND, UINT, WPARAM, LPARAM);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,

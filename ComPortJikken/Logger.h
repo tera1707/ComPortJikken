@@ -3,7 +3,8 @@
 #include <string>
 
 // Simple UI + file logger
-class Logger {
+class Logger
+{
 public:
     // hDlg can be null for file-only logging; logFilePath can be null to disable file logging
     explicit Logger(HWND hDlg = nullptr, const wchar_t* logFilePath = nullptr);
