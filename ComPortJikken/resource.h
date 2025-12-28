@@ -13,7 +13,6 @@
 #define IDC_EVENTJIKKEN                 109
 #define IDR_MAINFRAME                   128
 #define IDD_DIALOG1                     129
-#define IDD_DIALOG2                     130
 #define IDC_BUTTON1                     1000
 #define IDC_PORT_OPEN                   1001
 #define IDC_PORT_CLOSE                  1002
@@ -26,6 +25,9 @@
 #define IDC_PORT_SEND_COMMAND_STRING    1008
 #define IDC_PORT_COMMAND_SEND           1009
 #define IDC_EDIT1                       1010
+#define IDC_PORT_CONTINUOUS_SEND        1010
+#define IDC_PORT_CONTINUOUS_STOP        1011
+#define IDC_PORT_CONTINUOUS_SEND2       1011
 #define IDC_STATIC                      -1
 
 // Next default values for new objects

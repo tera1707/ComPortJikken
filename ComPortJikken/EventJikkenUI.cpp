@@ -7,11 +7,12 @@
 #include "Logger.h"
 #include <string>
 #include <vector>
+#include <thread>
 
 // ローカル状態（このモジュール内に閉じる）
 static MyComPort g_ComPort; // COMポート管理用
-static int g_DefaultComPortIndex = 2; // アプリ起動時のCOMポートコンボ初期選択インデックス
-static const wchar_t* g_DefaultCommandString = L"AT\r\n"; // 既定送信文字列
+static int g_DefaultComPortIndex = 3; // アプリ起動時のCOMポートコンボ初期選択インデックス
+static const wchar_t* g_DefaultCommandString = L"AT"; // 既定送信文字列
 static const wchar_t* g_DefaultTargetDeviceId = L"BTHENUM\\Dev_0CA694033D59"; // 既定ターゲットID
 static Logger g_Logger; // UI + file logger (file path can be set later)
 
@@ -55,45 +56,6 @@ BOOL OnInitDialog(HWND hDlg)
     SetDlgItemTextW(hDlg, IDC_TARGET_DEVICE, g_DefaultTargetDeviceId);
     SetDlgItemTextW(hDlg, IDC_PORT_SEND_COMMAND_STRING, g_DefaultCommandString);
     return TRUE;
-}
-
-// 受信処理（受信バッファが空になるまで）
-void OnReceiveResponse(HWND hDlg)
-{
-    if (!g_ComPort.IsOpen())
-    {
-        AppendLog(hDlg, L"受信できません。ポートが開いていません。");
-        return;
-    }
-
-    AppendLog(hDlg, L"受信処理を開始します。");
-
-    std::vector<unsigned char> rx;
-    int total = g_ComPort.ReadAllAvailable(rx);
-    if (total < 0)
-    {
-        wchar_t msg[128];
-        swprintf_s(msg, L"受信に失敗しました。(Err=%lu)", g_ComPort.LastError());
-        AppendLog(hDlg, msg);
-        return;
-    }
-    if (total == 0)
-    {
-        AppendLog(hDlg, L"受信データはありません。");
-        return;
-    }
-    std::string text(rx.begin(), rx.end());
-    wchar_t wbuf[1024];
-    int wlen = MultiByteToWideChar(CP_ACP, 0, text.c_str(), (int)text.size(), wbuf, (int)_countof(wbuf) - 1);
-    if (wlen <= 0)
-    {
-        AppendLog(hDlg, L"受信データの文字コード変換に失敗しました。");
-        return;
-    }
-    wbuf[wlen] = L'\0';
-
-    AppendLog(hDlg, L"応答を受信しました。");
-    AppendLog(hDlg, wbuf);
 }
 
 // ポートを開く
@@ -194,16 +156,10 @@ static void OnPortCommandSend(HWND hDlg)
         AppendLog(hDlg, L"送信文字列が空です。");
         return;
     }
-    int alen = WideCharToMultiByte(CP_ACP, 0, wcmd, wlen, nullptr, 0, nullptr, nullptr);
-    if (alen <= 0)
-    {
-        AppendLog(hDlg, L"文字列の変換に失敗しました。");
-        return;
-    }
-    std::string acmd(alen, '\0');
-    WideCharToMultiByte(CP_ACP, 0, wcmd, wlen, &acmd[0], alen, nullptr, nullptr);
+    
+    std::wstring wcmd2 = std::wstring(wcmd) + L"\r";
 
-    int written = g_ComPort.Write(acmd.data(), (DWORD)acmd.size());
+    int written = g_ComPort.Write(wcmd2.data(), (DWORD)wcmd2.size());
     if (written < 0)
     {
         wchar_t msg[128];
@@ -212,15 +168,48 @@ static void OnPortCommandSend(HWND hDlg)
     }
     else
     {
-        wchar_t msg[128];
-        swprintf_s(msg, L"%d バイト送信しました。", written);
-        AppendLog(hDlg, msg);
+        AppendLog(hDlg, (std::wstring(L"[send]") + wcmd2).c_str());
     }
+}
+
+// 受信処理（受信バッファが空になるまで）
+void OnReceiveResponse(HWND hDlg)
+{
+    if (!g_ComPort.IsOpen())
+    {
+        AppendLog(hDlg, L"受信できません。ポートが開いていません。");
+        return;
+    }
+
+    //AppendLog(hDlg, L"受信処理を開始します。");
+
+    std::vector<unsigned char> rx;
+    int total = g_ComPort.ReadAllAvailable(rx);
+    if (total < 0)
+    {
+        wchar_t msg[128];
+        swprintf_s(msg, L"受信に失敗しました。(Err=%lu)", g_ComPort.LastError());
+        AppendLog(hDlg, msg);
+        return;
+    }
+    if (total == 0)
+    {
+        //AppendLog(hDlg, L"受信データはありません。");
+        return;
+    }
+
+    std::wstring text(reinterpret_cast<const char*>(rx.data()), reinterpret_cast<const char*>(rx.data()) + rx.size());
+
+    AppendLog(hDlg, (std::wstring(L"[recv]") + text).c_str());
 }
 
 // ダイアログプロシージャ
 BOOL CALLBACK MyDlgProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
 {
+    static std::thread recieveThread;
+    static bool isRecieving = false;
+    static bool isContinuousSending = false;
+
     switch (msg)
     {
     case WM_INITDIALOG:
@@ -236,13 +225,61 @@ BOOL CALLBACK MyDlgProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
             return TRUE;
         case IDC_PORT_OPEN:
             OnPortOpen(hDlg);
+
+            // 受信スレッド開始
+            isRecieving = true;
+
+            recieveThread = std::thread([hDlg]()
+            {
+                while (isRecieving)
+                {
+                    OnReceiveResponse(hDlg);
+                }
+                //AppendLog(hDlg, L"連続送信終了");
+            });
+
             return TRUE;
         case IDC_PORT_CLOSE:
+            isRecieving = false;
+
+            if (recieveThread.joinable())
+                recieveThread.join();
+
             OnPortClose(hDlg);
             return TRUE;
         case IDC_PORT_COMMAND_SEND:
+            // コマンドを送信した後に
             OnPortCommandSend(hDlg);
+            // 応答を期待する
             OnReceiveResponse(hDlg);
+            return TRUE;
+        case IDC_PORT_CONTINUOUS_SEND:
+
+            if (isContinuousSending)
+                return TRUE;
+
+            isContinuousSending = true;
+            AppendLog(hDlg, L"連続送信開始");
+
+            std::thread([hDlg]()
+            {
+                while (isContinuousSending)
+                {
+                    OnPortOpen(hDlg);
+                    //::Sleep(1000);
+                    OnPortCommandSend(hDlg);
+                    //::Sleep(1000);
+                    OnReceiveResponse(hDlg);
+                    //::Sleep(1000);
+                    OnPortClose(hDlg);
+                    //::Sleep(1000);
+                }
+                AppendLog(hDlg, L"連続送信終了");
+            }).detach();
+
+            return TRUE;
+        case IDC_PORT_CONTINUOUS_STOP:
+            isContinuousSending = false;
             return TRUE;
         case IDC_DEVICE_STOP:
             OnDeviceStop(hDlg);

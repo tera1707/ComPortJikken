@@ -62,7 +62,7 @@ bool MyComPort2::Open(const wchar_t* portName,
         return false;
     }
 
-    if (!ConfigurePort(baudRate, byteSize, parity, stopBits, readTimeoutMs, writeTimeoutMs, setDtr, setRts))
+    if (!ConfigPort(baudRate, byteSize, parity, stopBits, readTimeoutMs, writeTimeoutMs, setDtr, setRts))
     {
         Close();
         return false;
@@ -87,6 +87,7 @@ void MyComPort2::Close()
 
     if (m_handle != INVALID_HANDLE_VALUE && m_handle != nullptr)
     {
+        // m_handleがCloseされると、非同期のWrite/Readの待ちイベントlocalOv.hEvent/ovEvt.hEvent もキャンセルされる
         ::CloseHandle(m_handle);
         m_handle = INVALID_HANDLE_VALUE;
     }
@@ -109,71 +110,65 @@ int MyComPort2::Write(const void* buffer, DWORD bytesToWrite)
     return static_cast<int>(written);
 }
 
-int MyComPort2::WriteAsync(const void* buffer, DWORD bytesToWrite, HANDLE hEvent, OVERLAPPED* pOv)
+bool MyComPort2::WriteAsync(const void* buffer, DWORD bytesToWrite)
 {
     if (!IsOpen())
-        return -1;
+        return false;
 
     if (buffer == nullptr || bytesToWrite == 0)
-        return 0;
+        return false;
 
     ResetError();
 
     OVERLAPPED localOv = {};
-    OVERLAPPED* ov = pOv ? pOv : &localOv;
-    if (ov->hEvent == nullptr)
-    {
-        ov->hEvent = hEvent ? hEvent : ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
-    }
-    else if (hEvent)
-    {
-        ov->hEvent = hEvent; // caller-provided event has priority
-    }
+    localOv.hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
 
     DWORD written = 0;
-    BOOL ok = ::WriteFile(m_handle, buffer, bytesToWrite, &written, ov);
+    BOOL ok = ::WriteFile(m_handle, buffer, bytesToWrite, &written, &localOv);
+
     if (!ok)
     {
         DWORD err = ::GetLastError();
         if (err != ERROR_IO_PENDING)
         {
             m_lastError = err;
-            return -1;
+            return false;
         }
-        // Wait for completion using the event
-        DWORD waitMs = INFINITE; // optional: could use configured write timeout
-        DWORD wr = ::WaitForSingleObject(ov->hEvent, waitMs);
+
+        // 書き込み完了待ち
+        DWORD wr = ::WaitForSingleObject(localOv.hEvent, INFINITE);
         if (wr == WAIT_OBJECT_0)
         {
             // Retrieve result
-            BOOL res = ::GetOverlappedResult(m_handle, ov, &written, FALSE);
+            BOOL res = ::GetOverlappedResult(m_handle, &localOv, &written, FALSE);
             if (!res)
             {
                 m_lastError = ::GetLastError();
-                return -1;
+                return false;
             }
-            return static_cast<int>(written);
+            return true;
         }
         else if (wr == WAIT_TIMEOUT)
         {
             // Cancel I/O on timeout
-            ::CancelIoEx(m_handle, ov);
             m_lastError = WAIT_TIMEOUT;
-            return -1;
+            ::CancelIoEx(m_handle, &localOv);
+            return false;
         }
         else
         {
             // WAIT_FAILED or abandoned
             m_lastError = ::GetLastError();
-            ::CancelIoEx(m_handle, ov);
-            return -1;
+            ::CancelIoEx(m_handle, &localOv);
+            return false;
         }
     }
     // completed immediately
-    return static_cast<int>(written);
+    return true;
 }
 
-int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead)
+// 受信イベントが来たら、固定の長さを読み込む方式
+int MyComPort2::ReadFixedOnRxEvent(void* buffer, DWORD bytesToRead)
 {
     if (!IsOpen())
         return -1;
@@ -208,6 +203,7 @@ int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead)
             return -1;
         }
     }
+
     ::CloseHandle(ovEvt.hEvent);
 
     // Check for RXCHAR event before proceeding
@@ -253,11 +249,13 @@ int MyComPort2::ReadOnRxEvent(void* buffer, DWORD bytesToRead)
             return -1;
         }
     }
+
     ::CloseHandle(ovRead.hEvent);
     return static_cast<int>(bytes);
 }
 
-int MyComPort2::ReadAllAvailable(std::vector<unsigned char>& outBuffer)
+// 受信イベントが来たら、受信バッファに入っている分だけReadする方式
+int MyComPort2::ReadAvailableOnRxEvent(std::vector<unsigned char>& outBuffer)
 {
     if (!IsOpen())
         return -1;
@@ -393,7 +391,7 @@ bool MyComPort2::Purge()
     return true;
 }
 
-bool MyComPort2::ConfigurePort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts)
+bool MyComPort2::ConfigPort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts)
 {
     DCB dcb = {};
     dcb.DCBlength = sizeof(DCB);
@@ -477,7 +475,7 @@ void MyComPort2::StopReceiveThread()
     {
         if (m_hRecvThread)
         {
-            ::WaitForSingleObject(m_hRecvThread, 3000);
+            ::WaitForSingleObject(m_hRecvThread, 1000);
             ::CloseHandle(m_hRecvThread);
             m_hRecvThread = nullptr;
         }
@@ -491,7 +489,9 @@ DWORD WINAPI MyComPort2::RecvThreadProcStatic(LPVOID lpParam)
 
 DWORD MyComPort2::RecvThreadProc()
 {
-    unsigned char buf[512];
+    unsigned char buf[512];         // 固定の長さを読み込む方式用
+    std::vector<unsigned char> rx;  // バッファに入った分だけ読み込む方式用
+
     while (InterlockedCompareExchange(&m_recvRunFlag, 1, 1) == 1)
     {
         if (!IsOpen())
@@ -500,7 +500,12 @@ DWORD MyComPort2::RecvThreadProc()
             continue;
         }
 
-        int n = ReadOnRxEvent(buf, (DWORD)sizeof(buf));
+        // 固定の長さを読み込む方式
+        //int n = ReadFixedOnRxEvent(buf, (DWORD)sizeof(buf));
+
+        // バッファに入った分だけ読み込む方式
+        rx.clear();
+        int n = ReadAvailableOnRxEvent(rx);
 
         if (InterlockedCompareExchange(&m_recvRunFlag, 1, 1) != 1)
             break;
@@ -511,8 +516,12 @@ DWORD MyComPort2::RecvThreadProc()
             continue;
         }
 
-        if (m_callback)
-            m_callback(buf, (size_t)n);
+        // 固定の長さを読み込む方式
+        //if (m_callback)
+        //    m_callback(buf, (size_t)n);
+
+        // バッファに入った分だけ読み込む方式
+        m_callback(rx.data(), (size_t)rx.size());
     }
     return 0;
 }

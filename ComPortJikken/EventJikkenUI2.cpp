@@ -7,12 +7,13 @@
 #include "Logger.h"
 #include <string>
 #include <vector>
+#include <thread>
 
 // ローカル状態
 static MyComPort2 g_ComPort2; // イベント駆動COMポート
 static Logger g_Logger2;      // ログ
-static int g_DefaultComPortIndex2 = 2;
-static const wchar_t* g_DefaultCommandString2 = L"AT\r\n";
+static int g_DefaultComPortIndex2 = 3;
+static const wchar_t* g_DefaultCommandString2 = L"AT";
 static const wchar_t* g_DefaultTargetDeviceId2 = L"BTHENUM\\Dev_0CA694033D59";
 
 static void AppendLog2(HWND hDlg, const wchar_t* text)
@@ -90,15 +91,8 @@ static void OnPortOpen2(HWND hDlg)
         // 受信コールバック設定してスレッド起動
         g_ComPort2.StartReceiveThread([hDlg](const unsigned char* data, size_t len)
         {
-            std::string text(reinterpret_cast<const char*>(data), reinterpret_cast<const char*>(data) + len);
-            wchar_t wbuf[1024];
-            int wlen = MultiByteToWideChar(CP_ACP, 0, text.c_str(), (int)text.size(), wbuf, (int)_countof(wbuf) - 1);
-            if (wlen > 0)
-            {
-                wbuf[wlen] = L'\0';
-                AppendLog2(hDlg, L"受信しました。");
-                AppendLog2(hDlg, wbuf);
-            }
+            std::wstring text(reinterpret_cast<const char*>(data), reinterpret_cast<const char*>(data) + len);
+            AppendLog2(hDlg, (std::wstring(L"[rcv]") + text).c_str());
         });
     }
 }
@@ -133,20 +127,10 @@ static void OnPortCommandSend2(HWND hDlg)
         AppendLog2(hDlg, L"送信文字列が空です。");
         return;
     }
-    int alen = WideCharToMultiByte(CP_ACP, 0, wcmd, wlen, nullptr, 0, nullptr, nullptr);
-    if (alen <= 0)
-    {
-        AppendLog2(hDlg, L"文字列の変換に失敗しました。");
-        return;
-    }
-    std::string acmd(alen, '\0');
-    WideCharToMultiByte(CP_ACP, 0, wcmd, wlen, &acmd[0], alen, nullptr, nullptr);
 
-    // 非同期送信（完了待ち）
-    OVERLAPPED ov = {};
-    HANDLE hEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
-    ov.hEvent = hEvent;
-    int res = g_ComPort2.WriteAsync(acmd.data(), (DWORD)acmd.size(), hEvent, &ov);
+    std::wstring wcmd2 = std::wstring(wcmd) + L"\r";
+    int res = g_ComPort2.WriteAsync(wcmd2.data(), (DWORD)wcmd2.size());
+
     if (res < 0)
     {
         wchar_t msg[128];
@@ -155,31 +139,15 @@ static void OnPortCommandSend2(HWND hDlg)
     }
     else
     {
-        DWORD written = 0;
-        if (res == 0)
-        {
-            // 完了待ち（WriteAsync 内で待機済みなので、ここでは結果取得のみ）
-            if (!::GetOverlappedResult(g_ComPort2.IsOpen() ? (HANDLE)nullptr : (HANDLE)nullptr, &ov, &written, FALSE))
-            {
-                // 上記はダミー。WriteAsyncで完了済みのため、書き込み済みバイトは不明ならメッセージのみ
-                written = (DWORD)acmd.size();
-            }
-        }
-        else
-        {
-            written = (DWORD)res;
-        }
-        wchar_t msg[128];
-        swprintf_s(msg, L"%lu バイト送信しました。", written);
-        AppendLog2(hDlg, msg);
+        AppendLog2(hDlg, (std::wstring(L"[send]") + wcmd2).c_str());
     }
-    if (hEvent)
-        ::CloseHandle(hEvent);
 }
 
 // ダイアログプロシージャ（MYTESTDLGBASE_MAIN2）
 BOOL CALLBACK MyDlgProc2(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
 {
+    static bool isContinuousSending = false;
+
     switch (msg)
     {
     case WM_INITDIALOG:
@@ -202,6 +170,32 @@ BOOL CALLBACK MyDlgProc2(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
         case IDC_PORT_COMMAND_SEND:
             OnPortCommandSend2(hDlg);
             // 受信はバックグラウンドスレッドが継続実施
+            return TRUE;
+        case IDC_PORT_CONTINUOUS_SEND:
+
+            if (isContinuousSending)
+                return TRUE;
+
+            isContinuousSending = true;
+            AppendLog2(hDlg, L"連続送信開始");
+
+            std::thread([hDlg]()
+            {
+                while (isContinuousSending)
+                {
+                    OnPortOpen2(hDlg);
+                    //::Sleep(1000);
+                    OnPortCommandSend2(hDlg);
+                    //::Sleep(1000);
+                    OnPortClose2(hDlg);
+                    //::Sleep(1000);
+                }
+                AppendLog2(hDlg, L"連続送信終了");
+            }).detach();
+
+            return TRUE;
+        case IDC_PORT_CONTINUOUS_STOP:
+            isContinuousSending = false;
             return TRUE;
         case IDC_DEVICE_STOP:
             //OnDeviceStop(hDlg);

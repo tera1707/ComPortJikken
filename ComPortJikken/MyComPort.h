@@ -20,12 +20,12 @@ public:
 
     // Open a COM port. Example: L"COM3". Returns true on success.
     bool Open(const wchar_t* portName,
-              DWORD baudRate = CBR_115200,
+              DWORD baudRate = CBR_9600,
               BYTE byteSize = 8,
               BYTE parity = NOPARITY,
               BYTE stopBits = ONESTOPBIT,
-              DWORD readTimeoutMs = 5000,
-              DWORD writeTimeoutMs = 5000,
+              DWORD readTimeoutMs = 1000,
+              DWORD writeTimeoutMs = 1000,
               bool setDtr = true,
               bool setRts = true);
 

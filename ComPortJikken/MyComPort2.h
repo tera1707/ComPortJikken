@@ -37,14 +37,14 @@ public:
     // Write raw bytes synchronously. Returns number of bytes written, or -1 on error.
     int Write(const void* buffer, DWORD bytesToWrite);
 
-    // Write using OVERLAPPED. Returns bytes written if completed immediately, 0 if pending, -1 on error.
-    int WriteAsync(const void* buffer, DWORD bytesToWrite, HANDLE hEvent, OVERLAPPED* pOv);
+    // Write using OVERLAPPED. Returns true on success (completed or after wait), false on error.
+    bool WriteAsync(const void* buffer, DWORD bytesToWrite);
 
-    // Event-driven read: waits for RXCHAR then reads up to bytesToRead. Returns number of bytes read, or -1 on error.
-    int ReadOnRxEvent(void* buffer, DWORD bytesToRead);
+    // Fixed-length read triggered by RXCHAR event. Returns number of bytes read, or -1 on error.
+    int ReadFixedOnRxEvent(void* buffer, DWORD bytesToRead);
 
-    // Read all currently available bytes using event-driven loop (RXCHAR) until buffer empties.
-    int ReadAllAvailable(std::vector<unsigned char>& outBuffer);
+    // Read as much as available in input queue when RXCHAR event occurs.
+    int ReadAvailableOnRxEvent(std::vector<unsigned char>& outBuffer);
 
     // Purge in/out buffers
     bool Purge();
@@ -55,11 +55,10 @@ public:
 
     DWORD LastError() const noexcept { return m_lastError; }
 
-private:
     void ResetError() noexcept { m_lastError = 0; }
     void SetErrorFromLastError() noexcept { m_lastError = ::GetLastError(); }
 
-    bool ConfigurePort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts);
+    bool ConfigPort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts);
 
     static DWORD WINAPI RecvThreadProcStatic(LPVOID lpParam);
     DWORD RecvThreadProc();
