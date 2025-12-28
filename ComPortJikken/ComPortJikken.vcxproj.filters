@@ -27,13 +27,13 @@
     <ClInclude Include="EventJikken.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="MyComPort.h">
+    <ClInclude Include="SerialCommSynchronous.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="MyDeviceHandler.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="MyComPort2.h">
+    <ClInclude Include="SerialCommAsynchronous.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="EventJikkenUI.h">
@@ -47,13 +47,13 @@
     <ClCompile Include="EventJikken.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="MyComPort.cpp">
+    <ClCompile Include="SerialCommSynchronous.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="MyDeviceHandler.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="MyComPort2.cpp">
+    <ClCompile Include="SerialCommAsynchronous.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="EventJikkenUI.cpp">

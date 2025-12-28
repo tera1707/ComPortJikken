@@ -5,18 +5,18 @@
 
 // Simple serial COM port wrapper
 // Minimal, header-only interface for opening, configuring, reading, and writing.
-class MyComPort {
+class SerialCommSynchronous {
 public:
-    MyComPort();
-    ~MyComPort();
+    SerialCommSynchronous();
+    ~SerialCommSynchronous();
 
     // Disable copy
-    MyComPort(const MyComPort&) = delete;
-    MyComPort& operator=(const MyComPort&) = delete;
+    SerialCommSynchronous(const SerialCommSynchronous&) = delete;
+    SerialCommSynchronous& operator=(const SerialCommSynchronous&) = delete;
 
     // Enable move
-    MyComPort(MyComPort&& other) noexcept;
-    MyComPort& operator=(MyComPort&& other) noexcept;
+    SerialCommSynchronous(SerialCommSynchronous&& other) noexcept;
+    SerialCommSynchronous& operator=(SerialCommSynchronous&& other) noexcept;
 
     // Open a COM port. Example: L"COM3". Returns true on success.
     bool Open(const wchar_t* portName,

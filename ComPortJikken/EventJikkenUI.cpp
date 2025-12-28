@@ -1,7 +1,7 @@
 #include "framework.h"
 #include "EventJikken.h"
 #include "EventJikkenUI.h"
-#include "MyComPort.h"
+#include "SerialCommSynchronous.h"
 #include "MyDeviceHandler.h"
 #include "resource.h"
 #include "Logger.h"
@@ -10,7 +10,7 @@
 #include <thread>
 
 // ローカル状態（このモジュール内に閉じる）
-static MyComPort g_ComPort; // COMポート管理用
+static SerialCommSynchronous g_ComPort; // COMポート管理用
 static int g_DefaultComPortIndex = 3; // アプリ起動時のCOMポートコンボ初期選択インデックス
 static const wchar_t* g_DefaultCommandString = L"AT"; // 既定送信文字列
 static const wchar_t* g_DefaultTargetDeviceId = L"BTHENUM\\Dev_0CA694033D59"; // 既定ターゲットID
@@ -214,6 +214,12 @@ BOOL CALLBACK MyDlgProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
     {
     case WM_INITDIALOG:
         return OnInitDialog(hDlg);
+    case WM_CLOSE:
+        isRecieving = false;
+        isContinuousSending = false;
+        if (recieveThread.joinable())
+            recieveThread.join();
+        return FALSE;
     case WM_COMMAND:
         switch (LOWORD(wp))
         {
@@ -235,7 +241,6 @@ BOOL CALLBACK MyDlgProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
                 {
                     OnReceiveResponse(hDlg);
                 }
-                //AppendLog(hDlg, L"連続送信終了");
             });
 
             return TRUE;

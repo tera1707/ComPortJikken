@@ -1,7 +1,7 @@
 #include "framework.h"
 #include "EventJikken.h"
 #include "EventJikkenUI.h"
-#include "MyComPort2.h"
+#include "SerialCommAsynchronous.h"
 #include "MyDeviceHandler.h"
 #include "resource.h"
 #include "Logger.h"
@@ -10,7 +10,7 @@
 #include <thread>
 
 // ローカル状態
-static MyComPort2 g_ComPort2; // イベント駆動COMポート
+static SerialCommAsynchronous g_ComPort2; // イベント駆動COMポート
 static Logger g_Logger2;      // ログ
 static int g_DefaultComPortIndex2 = 3;
 static const wchar_t* g_DefaultCommandString2 = L"AT";
@@ -152,6 +152,9 @@ BOOL CALLBACK MyDlgProc2(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
     {
     case WM_INITDIALOG:
         return OnInitDialog2(hDlg);
+    case WM_CLOSE:
+        isContinuousSending = false;
+        return FALSE;
     case WM_COMMAND:
         switch (LOWORD(wp))
         {

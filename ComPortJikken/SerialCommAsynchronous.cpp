@@ -1,9 +1,9 @@
-#include "MyComPort2.h"
+#include "SerialCommAsynchronous.h"
 
-MyComPort2::MyComPort2() {}
-MyComPort2::~MyComPort2() { Close(); }
+SerialCommAsynchronous::SerialCommAsynchronous() {}
+SerialCommAsynchronous::~SerialCommAsynchronous() { Close(); }
 
-MyComPort2::MyComPort2(MyComPort2&& other) noexcept
+SerialCommAsynchronous::SerialCommAsynchronous(SerialCommAsynchronous&& other) noexcept
 {
     m_handle = other.m_handle;
     m_lastError = other.m_lastError;
@@ -16,7 +16,7 @@ MyComPort2::MyComPort2(MyComPort2&& other) noexcept
     other.m_recvRunFlag = 0;
 }
 
-MyComPort2& MyComPort2::operator=(MyComPort2&& other) noexcept
+SerialCommAsynchronous& SerialCommAsynchronous::operator=(SerialCommAsynchronous&& other) noexcept
 {
     if (this != &other)
     {
@@ -34,7 +34,7 @@ MyComPort2& MyComPort2::operator=(MyComPort2&& other) noexcept
     return *this;
 }
 
-bool MyComPort2::Open(const wchar_t* portName,
+bool SerialCommAsynchronous::Open(const wchar_t* portName,
               DWORD baudRate,
               BYTE byteSize,
               BYTE parity,
@@ -80,7 +80,7 @@ bool MyComPort2::Open(const wchar_t* portName,
     return true;
 }
 
-void MyComPort2::Close()
+void SerialCommAsynchronous::Close()
 {
     // stop receive thread first
     StopReceiveThread();
@@ -93,7 +93,7 @@ void MyComPort2::Close()
     }
 }
 
-int MyComPort2::Write(const void* buffer, DWORD bytesToWrite)
+int SerialCommAsynchronous::Write(const void* buffer, DWORD bytesToWrite)
 {
     if (!IsOpen())
         return -1;
@@ -110,7 +110,7 @@ int MyComPort2::Write(const void* buffer, DWORD bytesToWrite)
     return static_cast<int>(written);
 }
 
-bool MyComPort2::WriteAsync(const void* buffer, DWORD bytesToWrite)
+bool SerialCommAsynchronous::WriteAsync(const void* buffer, DWORD bytesToWrite)
 {
     if (!IsOpen())
         return false;
@@ -168,7 +168,7 @@ bool MyComPort2::WriteAsync(const void* buffer, DWORD bytesToWrite)
 }
 
 // 受信イベントが来たら、固定の長さを読み込む方式
-int MyComPort2::ReadFixedOnRxEvent(void* buffer, DWORD bytesToRead)
+int SerialCommAsynchronous::ReadFixedOnRxEvent(void* buffer, DWORD bytesToRead)
 {
     if (!IsOpen())
         return -1;
@@ -255,7 +255,7 @@ int MyComPort2::ReadFixedOnRxEvent(void* buffer, DWORD bytesToRead)
 }
 
 // 受信イベントが来たら、受信バッファに入っている分だけReadする方式
-int MyComPort2::ReadAvailableOnRxEvent(std::vector<unsigned char>& outBuffer)
+int SerialCommAsynchronous::ReadAvailableOnRxEvent(std::vector<unsigned char>& outBuffer)
 {
     if (!IsOpen())
         return -1;
@@ -377,7 +377,7 @@ int MyComPort2::ReadAvailableOnRxEvent(std::vector<unsigned char>& outBuffer)
     return static_cast<int>(outBuffer.size());
 }
 
-bool MyComPort2::Purge()
+bool SerialCommAsynchronous::Purge()
 {
     if (!IsOpen())
         return false;
@@ -391,7 +391,7 @@ bool MyComPort2::Purge()
     return true;
 }
 
-bool MyComPort2::ConfigPort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts)
+bool SerialCommAsynchronous::ConfigPort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts)
 {
     DCB dcb = {};
     dcb.DCBlength = sizeof(DCB);
@@ -449,7 +449,7 @@ bool MyComPort2::ConfigPort(DWORD baudRate, BYTE byteSize, BYTE parity, BYTE sto
 
 // ---- Receive thread management ----
 
-bool MyComPort2::StartReceiveThread(ReceiveCallback cb)
+bool SerialCommAsynchronous::StartReceiveThread(ReceiveCallback cb)
 {
     if (!IsOpen())
         return false;
@@ -469,7 +469,7 @@ bool MyComPort2::StartReceiveThread(ReceiveCallback cb)
     return m_hRecvThread != nullptr;
 }
 
-void MyComPort2::StopReceiveThread()
+void SerialCommAsynchronous::StopReceiveThread()
 {
     if (InterlockedCompareExchange(&m_recvRunFlag, 0, 1) == 1)
     {
@@ -482,12 +482,12 @@ void MyComPort2::StopReceiveThread()
     }
 }
 
-DWORD WINAPI MyComPort2::RecvThreadProcStatic(LPVOID lpParam)
+DWORD WINAPI SerialCommAsynchronous::RecvThreadProcStatic(LPVOID lpParam)
 {
-    return reinterpret_cast<MyComPort2*>(lpParam)->RecvThreadProc();
+    return reinterpret_cast<SerialCommAsynchronous*>(lpParam)->RecvThreadProc();
 }
 
-DWORD MyComPort2::RecvThreadProc()
+DWORD SerialCommAsynchronous::RecvThreadProc()
 {
     unsigned char buf[512];         // 固定の長さを読み込む方式用
     std::vector<unsigned char> rx;  // バッファに入った分だけ読み込む方式用

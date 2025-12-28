@@ -1,19 +1,19 @@
-#include "MyComPort.h"
+#include "SerialCommSynchronous.h"
 #include <vector>
 
-MyComPort::MyComPort() : m_handle(INVALID_HANDLE_VALUE), m_lastError(0) {}
+SerialCommSynchronous::SerialCommSynchronous() : m_handle(INVALID_HANDLE_VALUE), m_lastError(0) {}
 
-MyComPort::~MyComPort() {
+SerialCommSynchronous::~SerialCommSynchronous() {
     Close();
 }
 
-MyComPort::MyComPort(MyComPort&& other) noexcept
+SerialCommSynchronous::SerialCommSynchronous(SerialCommSynchronous&& other) noexcept
     : m_handle(other.m_handle), m_lastError(other.m_lastError) {
     other.m_handle = INVALID_HANDLE_VALUE;
     other.m_lastError = 0;
 }
 
-MyComPort& MyComPort::operator=(MyComPort&& other) noexcept {
+SerialCommSynchronous& SerialCommSynchronous::operator=(SerialCommSynchronous&& other) noexcept {
     if (this != &other) {
         Close();
         m_handle = other.m_handle;
@@ -24,7 +24,7 @@ MyComPort& MyComPort::operator=(MyComPort&& other) noexcept {
     return *this;
 }
 
-bool MyComPort::Open(const wchar_t* portName, DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts) {
+bool SerialCommSynchronous::Open(const wchar_t* portName, DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts) {
     Close();
     ResetError();
 
@@ -96,18 +96,18 @@ bool MyComPort::Open(const wchar_t* portName, DWORD baudRate, BYTE byteSize, BYT
     return true;
 }
 
-void MyComPort::Close() {
+void SerialCommSynchronous::Close() {
     if (m_handle != INVALID_HANDLE_VALUE) {
         ::CloseHandle(m_handle);
         m_handle = INVALID_HANDLE_VALUE;
     }
 }
 
-bool MyComPort::IsOpen() const noexcept {
+bool SerialCommSynchronous::IsOpen() const noexcept {
     return m_handle != INVALID_HANDLE_VALUE;
 }
 
-int MyComPort::Write(const void* buffer, DWORD bytesToWrite) {
+int SerialCommSynchronous::Write(const void* buffer, DWORD bytesToWrite) {
     if (!IsOpen()) return -1;
     ResetError();
 
@@ -119,7 +119,7 @@ int MyComPort::Write(const void* buffer, DWORD bytesToWrite) {
     return static_cast<int>(written);
 }
 
-int MyComPort::Read(void* buffer, DWORD bytesToRead) {
+int SerialCommSynchronous::Read(void* buffer, DWORD bytesToRead) {
     if (!IsOpen()) return -1;
     ResetError();
 
@@ -131,7 +131,7 @@ int MyComPort::Read(void* buffer, DWORD bytesToRead) {
     return static_cast<int>(read);
 }
 
-int MyComPort::ReadAllAvailable(std::vector<unsigned char>& outBuffer) {
+int SerialCommSynchronous::ReadAllAvailable(std::vector<unsigned char>& outBuffer) {
     if (!IsOpen()) return -1;
     ResetError();
 
@@ -155,7 +155,7 @@ int MyComPort::ReadAllAvailable(std::vector<unsigned char>& outBuffer) {
     return static_cast<int>(outBuffer.size());
 }
 
-bool MyComPort::Purge() {
+bool SerialCommSynchronous::Purge() {
     if (!IsOpen()) return false;
     if (!::PurgeComm(m_handle, PURGE_RXCLEAR | PURGE_TXCLEAR | PURGE_RXABORT | PURGE_TXABORT)) {
         SetErrorFromLastError();

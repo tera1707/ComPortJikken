@@ -6,19 +6,19 @@
 
 // Event-driven serial COM port wrapper
 // Uses WaitCommEvent to wait for RXCHAR before performing ReadFile.
-class MyComPort2
+class SerialCommAsynchronous
 {
 public:
     using ReceiveCallback = std::function<void(const unsigned char* data, size_t len)>;
 
-    MyComPort2();
-    ~MyComPort2();
+    SerialCommAsynchronous();
+    ~SerialCommAsynchronous();
 
-    MyComPort2(const MyComPort2&) = delete;
-    MyComPort2& operator=(const MyComPort2&) = delete;
+    SerialCommAsynchronous(const SerialCommAsynchronous&) = delete;
+    SerialCommAsynchronous& operator=(const SerialCommAsynchronous&) = delete;
 
-    MyComPort2(MyComPort2&& other) noexcept;
-    MyComPort2& operator=(MyComPort2&& other) noexcept;
+    SerialCommAsynchronous(SerialCommAsynchronous&& other) noexcept;
+    SerialCommAsynchronous& operator=(SerialCommAsynchronous&& other) noexcept;
 
     // Open a COM port. Example: L"COM3". Returns true on success.
     bool Open(const wchar_t* portName,
