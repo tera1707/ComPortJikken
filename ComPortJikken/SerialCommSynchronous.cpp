@@ -181,6 +181,50 @@ int SerialCommSynchronous::ReadAllAvailable(std::vector<unsigned char>& outBuffe
     return static_cast<int>(outBuffer.size());
 }
 
+// RTS を下げる
+bool SerialCommSynchronous::RtsOff()
+{
+    if (!IsOpen())
+        return false;
+
+    if (!EscapeCommFunction(m_handle, CLRRTS))
+        return false;
+
+    return true;
+}
+
+// RTS を下げる
+bool SerialCommSynchronous::RtsOn()
+{
+    if (!IsOpen())
+        return false;
+
+    if (!EscapeCommFunction(m_handle, SETRTS))
+        return false;
+
+    return true;
+}
+
+bool SerialCommSynchronous::GetCts()
+{
+    // CTS 状態確認
+    DWORD ms;
+    GetCommModemStatus(m_handle, &ms);
+    bool cts = (ms & MS_CTS_ON) != 0;
+
+    return cts;
+}
+
+int SerialCommSynchronous::GetCountOfByteInQue()
+{
+    // 送信キュー確認
+    COMSTAT st;
+    DWORD err;
+    ClearCommError(m_handle, &err, &st);
+
+    return st.cbOutQue;
+}
+
 bool SerialCommSynchronous::Purge()
 {
     if (!IsOpen())

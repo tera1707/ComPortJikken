@@ -44,6 +44,11 @@ public:
     // Read all available bytes until buffer empties. Returns total bytes read, or -1 on error.
     int ReadAllAvailable(std::vector<unsigned char>& outBuffer);
 
+    bool RtsOff();
+    bool RtsOn();
+    bool GetCts();
+    int GetCountOfByteInQue();
+
     // Flush in/out buffers
     bool Purge();
 

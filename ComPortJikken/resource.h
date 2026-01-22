@@ -14,6 +14,7 @@
 #define IDR_MAINFRAME                   128
 #define IDD_DIALOG1                     129
 #define IDC_BUTTON1                     1000
+#define IDC_RTS_ON                      1000
 #define IDC_PORT_OPEN                   1001
 #define IDC_PORT_CLOSE                  1002
 #define IDC_BUTTON3                     1002
@@ -27,7 +28,9 @@
 #define IDC_EDIT1                       1010
 #define IDC_PORT_CONTINUOUS_SEND        1010
 #define IDC_PORT_CONTINUOUS_STOP        1011
-#define IDC_PORT_CONTINUOUS_SEND2       1011
+#define IDC_CTS                         1012
+#define IDC_CBINQUE                     1013
+#define IDC_RTS_OFF                     1015
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -37,7 +40,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        131
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1011
+#define _APS_NEXT_CONTROL_VALUE         1016
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

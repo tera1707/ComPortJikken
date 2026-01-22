@@ -241,20 +241,40 @@ BOOL CALLBACK MyDlgProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
 							// 受信に失敗したら、スレッド終了させる
 							isRecieving = false;
 						}
+
+						auto ctsState = g_ComPort.GetCts();
+						auto cbInQue = g_ComPort.GetCountOfByteInQue();
+
+						// CTS状態に応じてラジオボタンの選択を更新
+						{
+							wchar_t num[32] = {};
+							swprintf_s(num, L"%lu", (unsigned long)(cbInQue ? 1 : 0));
+							SetDlgItemTextW(hDlg, IDC_CTS, num);
+						}
+
+						// 受信をエディットへ表示
+						{
+							wchar_t num[32] = {};
+							swprintf_s(num, L"%lu", (unsigned long)cbInQue);
+							SetDlgItemTextW(hDlg, IDC_CBINQUE, num);
+						}
 					}
 				}).detach();
 
 			return TRUE;
 		case IDC_PORT_CLOSE:
 			isRecieving = false;
-
 			OnPortClose(hDlg);
 			return TRUE;
 		case IDC_PORT_COMMAND_SEND:
 			// コマンドを送信した後に
 			OnPortCommandSend(hDlg);
-			// 応答を期待する
-			OnReceiveResponse(hDlg);
+			return TRUE;
+		case IDC_RTS_ON:
+			g_ComPort.RtsOn();
+			return TRUE;
+		case IDC_RTS_OFF:
+			g_ComPort.RtsOff();
 			return TRUE;
 		case IDC_DEVICE_STOP:
 			OnDeviceStop(hDlg);
