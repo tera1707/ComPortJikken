@@ -33,9 +33,6 @@
     <ClInclude Include="MyDeviceHandler.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="SerialCommAsynchronous.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
     <ClInclude Include="EventJikkenUI.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
@@ -53,16 +50,10 @@
     <ClCompile Include="MyDeviceHandler.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="SerialCommAsynchronous.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
     <ClCompile Include="EventJikkenUI.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="Logger.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="EventJikkenUI2.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>

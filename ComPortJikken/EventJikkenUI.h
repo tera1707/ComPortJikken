@@ -10,8 +10,8 @@ void AppendLog(HWND hDlg, const wchar_t* text);
 BOOL OnInitDialog(HWND hDlg);
 
 // Actions
-void OnReceiveResponse(HWND hDlg);
-void OnPortOpen(HWND hDlg);
+bool OnReceiveResponse(HWND hDlg);
+bool OnPortOpen(HWND hDlg);
 void OnPortClose(HWND hDlg);
 void OnDeviceStop(HWND hDlg);
 void OnDeviceStart(HWND hDlg);
