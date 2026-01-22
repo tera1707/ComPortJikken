@@ -1,20 +1,26 @@
 #include "SerialCommSynchronous.h"
 #include <vector>
 
-SerialCommSynchronous::SerialCommSynchronous() : m_handle(INVALID_HANDLE_VALUE), m_lastError(0) {}
+SerialCommSynchronous::SerialCommSynchronous() : m_handle(INVALID_HANDLE_VALUE), m_lastError(0)
+{
+}
 
-SerialCommSynchronous::~SerialCommSynchronous() {
+SerialCommSynchronous::~SerialCommSynchronous()
+{
     Close();
 }
 
 SerialCommSynchronous::SerialCommSynchronous(SerialCommSynchronous&& other) noexcept
-    : m_handle(other.m_handle), m_lastError(other.m_lastError) {
+    : m_handle(other.m_handle), m_lastError(other.m_lastError)
+{
     other.m_handle = INVALID_HANDLE_VALUE;
     other.m_lastError = 0;
 }
 
-SerialCommSynchronous& SerialCommSynchronous::operator=(SerialCommSynchronous&& other) noexcept {
-    if (this != &other) {
+SerialCommSynchronous& SerialCommSynchronous::operator=(SerialCommSynchronous&& other) noexcept
+{
+    if (this != &other)
+    {
         Close();
         m_handle = other.m_handle;
         m_lastError = other.m_lastError;
@@ -24,11 +30,12 @@ SerialCommSynchronous& SerialCommSynchronous::operator=(SerialCommSynchronous&& 
     return *this;
 }
 
-bool SerialCommSynchronous::Open(const wchar_t* portName, DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts) {
+bool SerialCommSynchronous::Open(const wchar_t* portName, DWORD baudRate, BYTE byteSize, BYTE parity, BYTE stopBits, DWORD readTimeoutMs, DWORD writeTimeoutMs, bool setDtr, bool setRts)
+{
     Close();
     ResetError();
 
-    // Build full device path: \\\\.\COMx
+    // Build full device path: \\\\.
     std::wstring devicePath = L"\\\\.\\";
     devicePath += portName ? portName : L"";
 
@@ -40,7 +47,8 @@ bool SerialCommSynchronous::Open(const wchar_t* portName, DWORD baudRate, BYTE b
                              FILE_ATTRIBUTE_NORMAL,
                              nullptr);
 
-    if (m_handle == INVALID_HANDLE_VALUE) {
+    if (m_handle == INVALID_HANDLE_VALUE)
+    {
         SetErrorFromLastError();
         return false;
     }
@@ -52,7 +60,8 @@ bool SerialCommSynchronous::Open(const wchar_t* portName, DWORD baudRate, BYTE b
     timeouts.ReadTotalTimeoutMultiplier = 0;
     timeouts.WriteTotalTimeoutConstant = writeTimeoutMs;
     timeouts.WriteTotalTimeoutMultiplier = 0;
-    if (!::SetCommTimeouts(m_handle, &timeouts)) {
+    if (!::SetCommTimeouts(m_handle, &timeouts))
+    {
         SetErrorFromLastError();
         Close();
         return false;
@@ -61,7 +70,8 @@ bool SerialCommSynchronous::Open(const wchar_t* portName, DWORD baudRate, BYTE b
     // Configure DCB
     DCB dcb{};
     dcb.DCBlength = sizeof(dcb);
-    if (!::GetCommState(m_handle, &dcb)) {
+    if (!::GetCommState(m_handle, &dcb))
+    {
         SetErrorFromLastError();
         Close();
         return false;
@@ -78,14 +88,16 @@ bool SerialCommSynchronous::Open(const wchar_t* portName, DWORD baudRate, BYTE b
     dcb.fDtrControl = setDtr ? DTR_CONTROL_ENABLE : DTR_CONTROL_DISABLE;
     dcb.fRtsControl = setRts ? RTS_CONTROL_ENABLE : RTS_CONTROL_DISABLE;
 
-    if (!::SetCommState(m_handle, &dcb)) {
+    if (!::SetCommState(m_handle, &dcb))
+    {
         SetErrorFromLastError();
         Close();
         return false;
     }
 
     // Setup buffers
-    if (!::SetupComm(m_handle, 1 << 15, 1 << 15)) {
+    if (!::SetupComm(m_handle, 1 << 15, 1 << 15))
+    {
         SetErrorFromLastError();
         // not fatal; continue
     }
@@ -96,56 +108,70 @@ bool SerialCommSynchronous::Open(const wchar_t* portName, DWORD baudRate, BYTE b
     return true;
 }
 
-void SerialCommSynchronous::Close() {
-    if (m_handle != INVALID_HANDLE_VALUE) {
+void SerialCommSynchronous::Close()
+{
+    if (m_handle != INVALID_HANDLE_VALUE)
+    {
         ::CloseHandle(m_handle);
         m_handle = INVALID_HANDLE_VALUE;
     }
 }
 
-bool SerialCommSynchronous::IsOpen() const noexcept {
+bool SerialCommSynchronous::IsOpen() const noexcept
+{
     return m_handle != INVALID_HANDLE_VALUE;
 }
 
-int SerialCommSynchronous::Write(const void* buffer, DWORD bytesToWrite) {
-    if (!IsOpen()) return -1;
+int SerialCommSynchronous::Write(const void* buffer, DWORD bytesToWrite)
+{
+    if (!IsOpen())
+        return -1;
     ResetError();
 
     DWORD written = 0;
-    if (!::WriteFile(m_handle, buffer, bytesToWrite, &written, nullptr)) {
+    if (!::WriteFile(m_handle, buffer, bytesToWrite, &written, nullptr))
+    {
         SetErrorFromLastError();
         return -1;
     }
     return static_cast<int>(written);
 }
 
-int SerialCommSynchronous::Read(void* buffer, DWORD bytesToRead) {
-    if (!IsOpen()) return -1;
+int SerialCommSynchronous::Read(void* buffer, DWORD bytesToRead)
+{
+    if (!IsOpen())
+        return -1;
     ResetError();
 
     DWORD read = 0;
-    if (!::ReadFile(m_handle, buffer, bytesToRead, &read, nullptr)) {
+    if (!::ReadFile(m_handle, buffer, bytesToRead, &read, nullptr))
+    {
         SetErrorFromLastError();
         return -1;
     }
     return static_cast<int>(read);
 }
 
-int SerialCommSynchronous::ReadAllAvailable(std::vector<unsigned char>& outBuffer) {
-    if (!IsOpen()) return -1;
+int SerialCommSynchronous::ReadAllAvailable(std::vector<unsigned char>& outBuffer)
+{
+    if (!IsOpen())
+        return -1;
     ResetError();
 
     outBuffer.clear();
 
     // Read 1 byte at a time and rely on COMMTIMEOUTS for timeout.
     // Break when Read returns 0 bytes (timeout/no more data within the window).
-    for (;;) {
+    for (;;)
+    {
         unsigned char b = 0;
         int r = Read(&b, 1);
-        if (r < 0) {
+        if (r < 0)
+        {
             return -1; // error
         }
-        if (r == 0) {
+        if (r == 0)
+        {
             break; // timeout/no data
         }
         outBuffer.push_back(b);
@@ -155,9 +181,12 @@ int SerialCommSynchronous::ReadAllAvailable(std::vector<unsigned char>& outBuffe
     return static_cast<int>(outBuffer.size());
 }
 
-bool SerialCommSynchronous::Purge() {
-    if (!IsOpen()) return false;
-    if (!::PurgeComm(m_handle, PURGE_RXCLEAR | PURGE_TXCLEAR | PURGE_RXABORT | PURGE_TXABORT)) {
+bool SerialCommSynchronous::Purge()
+{
+    if (!IsOpen())
+        return false;
+    if (!::PurgeComm(m_handle, PURGE_RXCLEAR | PURGE_TXCLEAR | PURGE_RXABORT | PURGE_TXABORT))
+    {
         SetErrorFromLastError();
         return false;
     }
