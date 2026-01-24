@@ -251,7 +251,13 @@ BOOL CALLBACK MyDlgProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
 							// 受信に失敗したら、スレッド終了させる
 							isRecieving = false;
 						}
+					}
+				}).detach();
 
+			std::thread([hDlg]()
+				{
+					while (isRecieving)
+					{
 						auto ctsState = g_ComPort.GetCts();
 						auto cbInQue = g_ComPort.GetCountOfByteInQue();
 
@@ -268,6 +274,7 @@ BOOL CALLBACK MyDlgProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
 							swprintf_s(num, L"%lu", (unsigned long)cbInQue);
 							SetDlgItemTextW(hDlg, IDC_CBINQUE, num);
 						}
+						Sleep(50);
 					}
 				}).detach();
 

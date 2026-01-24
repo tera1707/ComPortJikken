@@ -24,8 +24,8 @@ public:
               BYTE byteSize = 8,
               BYTE parity = NOPARITY,
               BYTE stopBits = ONESTOPBIT,
-              DWORD readTimeoutMs = 1000,
-              DWORD writeTimeoutMs = 1000,
+              DWORD readTimeoutMs = 100,
+              DWORD writeTimeoutMs = 100,
               bool setDtr = true,
               bool setRts = true);
 

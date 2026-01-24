@@ -84,9 +84,13 @@ bool SerialCommSynchronous::Open(const wchar_t* portName, DWORD baudRate, BYTE b
     dcb.fBinary = TRUE;
     dcb.fParity = (parity != NOPARITY);
 
+    dcb.fOutxCtsFlow = TRUE;
+    dcb.fRtsControl = RTS_CONTROL_HANDSHAKE;
+
     // Apply DTR/RTS according to parameters
     dcb.fDtrControl = setDtr ? DTR_CONTROL_ENABLE : DTR_CONTROL_DISABLE;
     dcb.fRtsControl = setRts ? RTS_CONTROL_ENABLE : RTS_CONTROL_DISABLE;
+    //dcb.fDtrControl = setDtr ? DTR_CONTROL_ENABLE : DTR_CONTROL_DISABLE;
 
     if (!::SetCommState(m_handle, &dcb))
     {
