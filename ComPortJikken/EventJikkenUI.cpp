@@ -258,7 +258,7 @@ BOOL CALLBACK MyDlgProc(HWND hDlg, UINT msg, WPARAM wp, LPARAM lp)
 						// CTS状態に応じてラジオボタンの選択を更新
 						{
 							wchar_t num[32] = {};
-							swprintf_s(num, L"%lu", (unsigned long)(cbInQue ? 1 : 0));
+							swprintf_s(num, L"%lu", (unsigned long)(ctsState ? 1 : 0));
 							SetDlgItemTextW(hDlg, IDC_CTS, num);
 						}
 
